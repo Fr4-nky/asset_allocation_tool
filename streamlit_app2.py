@@ -31,7 +31,7 @@ log_scale_growth = st.sidebar.checkbox("Log Scale for Growth Axis", value=False)
 log_scale_inflation = st.sidebar.checkbox("Log Scale for Inflation Axis", value=False)
 
 # Load the data
-path = '/Users/alessandromassaad/Desktop/regimes/processed_data/'  # Update this path as needed
+path = './processed_data/' 
 
 @st.cache_data
 def load_data():
