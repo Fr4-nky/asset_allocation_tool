@@ -31,14 +31,14 @@ log_scale_growth = st.sidebar.checkbox("Log Scale for Growth Axis", value=False)
 log_scale_inflation = st.sidebar.checkbox("Log Scale for Inflation Axis", value=False)
 
 # Load the data
-path = './processed_data/'
+path = '/Users/alessandromassaad/Desktop/regimes/processed_data/'  # Update this path as needed
 
 @st.cache_data
 def load_data():
     df = pd.read_csv(path + 'growth_and_inflation2.csv', parse_dates=['DateTime'])
     df.sort_values('DateTime', inplace=True)
     df.reset_index(drop=True, inplace=True)
-    return df
+    return df.copy()
 
 data = load_data()
 
@@ -81,6 +81,16 @@ data = compute_sma(data, n)
 data = compute_derivatives(data, n)
 data = determine_regimes(data, n)
 
+# Save the DataFrame to CSV and provide a download button
+csv = data.to_csv(index=False)
+st.sidebar.download_button(
+    label="Download Data with Regimes as CSV",
+    data=csv,
+    file_name='data_with_regimes.csv',
+    mime='text/csv',
+)
+st.write("You can download the processed data as a CSV file from the sidebar.")
+
 # Map regime numbers to colors and labels for visualization
 data['Regime Color'] = data[f'sma_{n}_regime'].map(lambda x: regime_colors[x][0])
 data['Regime Label'] = data[f'sma_{n}_regime'].map(lambda x: regime_colors[x][1])
@@ -92,20 +102,15 @@ fig = go.Figure()
 data['Regime Change'] = (data[f'sma_{n}_regime'] != data[f'sma_{n}_regime'].shift()).cumsum()
 regime_periods = data.groupby('Regime Change')
 
-# For debugging: List all regime periods
 for name, group in regime_periods:
     regime_num = group[f'sma_{n}_regime'].iloc[0]
     color, label = regime_colors[regime_num]
     start_date = group['DateTime'].iloc[0]
     end_date = group['DateTime'].iloc[-1]
 
-    # Debugging output
-    duration = end_date - start_date
-    st.write(f"Regime {regime_num}: {label} from {start_date} to {end_date}, Duration: {duration}")
-
     if start_date == end_date:
         # Extend end_date by a small amount to ensure visibility
-        end_date += pd.Timedelta(minutes=1)
+        end_date += pd.Timedelta(days=1)
 
     fig.add_vrect(
         x0=start_date,
@@ -115,7 +120,6 @@ for name, group in regime_periods:
         layer="below",
         line_width=0
     )
-
 
 # Flag to ensure Date and Regime are added once in the hover
 hover_header_added = False
