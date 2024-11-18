@@ -1,5 +1,5 @@
-streamlit
-pandas
-numpy
-plotly
-kaleido
+pandas==1.5.3
+numpy==1.21.0
+streamlit==1.25.0
+plotly==5.14.1
+kaleido==0.2.1
