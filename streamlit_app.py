@@ -320,6 +320,48 @@ if 'Unknown' in sp_inflation_filtered['Regime'].unique():
 # Tabs for different analyses
 tabs = st.tabs(["Regime Visualization", "Asset Performance Over Time", "Performance Metrics per Regime"])
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Tab 1: Regime Visualization
 with tabs[0]:
     st.subheader("Regime Visualization")
@@ -773,18 +815,63 @@ with tabs[0]:
     
     st.plotly_chart(inflation_hist_fig)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Function to adjust prices for inflation (ensure this is defined before Tabs 2 and 3)
+def adjust_prices_for_inflation(df, price_columns, cpi_column='CPI'):
+    base_cpi = df[cpi_column].iloc[0]
+    for col in price_columns:
+        df[f'{col}_Adjusted'] = df[col] * (base_cpi / df[cpi_column])
+    return df
+
+# Sidebar for Asset Settings (ensure this is before Tabs 2 and 3 so that 'selected_assets' and 'adjust_for_inflation' are accessible)
+st.sidebar.header("Asset Settings")
+# Sidebar Asset Selection
+asset_options = list(asset_ts_data.columns)
+asset_options.remove('DateTime')
+selected_assets = st.sidebar.multiselect("Select Assets to Display:", asset_options, default=['Gold', 'Bonds'])
+# Checkbox for inflation adjustment
+adjust_for_inflation = st.sidebar.checkbox("Adjust Prices for Inflation (CPI)", value=False)
+
 # Tab 2: Asset Performance Over Time
 with tabs[1]:
     st.subheader("Asset Performance Over Time")
     
-    # Sidebar for Asset Settings
-    st.sidebar.header("Asset Settings")
-    # Sidebar Asset Selection
-    asset_options = list(asset_ts_data.columns)
-    asset_options.remove('DateTime')
-    selected_assets = st.sidebar.multiselect("Select Assets to Display:", asset_options, default=['Gold', 'Bonds'])
-    
-    # Add checkbox for log scale
+    # Add checkbox for log scale within the tab (this is fine)
     log_scale_normalized = st.checkbox(
         "Log Scale for Normalized Prices", value=False, key='log_scale_normalized'
     )
@@ -798,7 +885,7 @@ with tabs[1]:
         def merge_asset_with_regimes(asset_ts_df, sp_inflation_df):
             merged = pd.merge(
                 asset_ts_df,
-                sp_inflation_df[['DateTime', 'Regime']],
+                sp_inflation_df[['DateTime', 'Regime', 'CPI']],
                 on='DateTime',
                 how='left'
             )
@@ -806,6 +893,12 @@ with tabs[1]:
         
         with st.spinner('Merging asset data with regimes...'):
             merged_asset_data = merge_asset_with_regimes(asset_ts_filtered, sp_inflation_filtered)
+        
+        # Adjust asset prices for inflation if checkbox is checked
+        if adjust_for_inflation:
+            # Adjust prices
+            price_columns = selected_assets  # List of asset columns to adjust
+            merged_asset_data = adjust_prices_for_inflation(merged_asset_data, price_columns, cpi_column='CPI')
         
         # Add 'Regime' to asset data and fill NaN values
         merged_asset_data['Regime'] = merged_asset_data['Regime'].fillna('Unknown')
@@ -864,8 +957,10 @@ with tabs[1]:
         
         # Add asset traces
         for asset in selected_assets:
-            asset_data = merged_asset_data[['DateTime', asset, 'Regime']].copy()
-            asset_data = asset_data.dropna(subset=[asset]).copy()
+            # Use adjusted prices if the checkbox is checked
+            price_column = f'{asset}_Adjusted' if adjust_for_inflation else asset
+            asset_data = merged_asset_data[['DateTime', price_column, 'Regime']].copy()
+            asset_data = asset_data.dropna(subset=[price_column]).copy()
             asset_data['Regime'] = asset_data['Regime'].fillna('Unknown')
         
             if asset_data.empty:
@@ -873,11 +968,11 @@ with tabs[1]:
                 continue
         
             # Store actual prices
-            asset_data['Actual Price'] = asset_data[asset]
+            asset_data['Actual Price'] = asset_data[price_column]
         
             # Normalize prices so that the first valid point is 100
-            first_valid_value = asset_data[asset].iloc[0]
-            asset_data['Normalized Price'] = (asset_data[asset] / first_valid_value) * 100
+            first_valid_value = asset_data[price_column].iloc[0]
+            asset_data['Normalized Price'] = (asset_data[price_column] / first_valid_value) * 100
         
             # Prepare customdata with actual prices and regimes
             asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
@@ -886,28 +981,34 @@ with tabs[1]:
                 asset_data['Regime Label']
             ), axis=-1)
         
+            # Update hovertemplate to indicate whether prices are adjusted
+            price_label = 'Adjusted Price' if adjust_for_inflation else 'Actual Price'
+        
+            # Corrected hovertemplate without f-strings for format specifiers
+            hovertemplate=(
+                asset + "<br>"
+                "Date: %{x|%Y-%m-%d}<br>"
+                "Regime: %{customdata[1]}<br>"
+                "Normalized Price: %{y:.2f}<br>"
+                + price_label + ": %{customdata[0]:.2f}<extra></extra>"
+            )
+        
             fig2.add_trace(go.Scatter(
                 x=asset_data['DateTime'],
                 y=asset_data['Normalized Price'],
                 mode='lines',
-                name=asset,
+                name=asset + (' (Adjusted)' if adjust_for_inflation else ''),
                 customdata=customdata,
                 connectgaps=False,  # Do not connect gaps
-                hovertemplate=(
-                    f"{asset}<br>" +
-                    "Date: %{x|%Y-%m-%d}<br>" +
-                    "Regime: %{customdata[1]}<br>" +
-                    "Normalized Price: %{y:.2f}<br>" +
-                    "Actual Price: %{customdata[0]:.2f}<extra></extra>"
-                )
+                hovertemplate=hovertemplate
             ))
         
         # Update layout
         fig2.update_layout(
-            title='Asset Performance Over Time (Normalized to 100 at First Available Date)',
+            title='Asset Performance Over Time (Normalized to 100 at First Available Date)' + (' (Adjusted for Inflation)' if adjust_for_inflation else ''),
             xaxis=dict(title='Date', range=[start_date, end_date]),
             yaxis=dict(
-                title='Normalized Price',
+                title='Normalized Adjusted Price' if adjust_for_inflation else 'Normalized Price',
                 type='log' if log_scale_normalized else 'linear'
             ),
             hovermode='x unified',
@@ -936,7 +1037,11 @@ with tabs[1]:
         
         # Provide a download button for the asset data
         # Merge all selected asset data for download
-        all_asset_data = merged_asset_data[['DateTime'] + selected_assets + ['Regime']].copy()
+        if adjust_for_inflation:
+            adjusted_columns = [f'{asset}_Adjusted' for asset in selected_assets]
+            all_asset_data = merged_asset_data[['DateTime'] + selected_assets + adjusted_columns + ['Regime']].copy()
+        else:
+            all_asset_data = merged_asset_data[['DateTime'] + selected_assets + ['Regime']].copy()
         csv = all_asset_data.to_csv(index=False)
         st.download_button(
             label="Download Asset Data as CSV",
@@ -959,6 +1064,26 @@ with tabs[2]:
     if not selected_assets or not selected_metrics:
         st.warning("Please select at least one asset and one performance metric to display.")
     else:
+        # Merge asset data with regimes (include CPI for inflation adjustment)
+        @st.cache_data
+        def merge_asset_with_regimes(asset_ts_df, sp_inflation_df):
+            merged = pd.merge(
+                asset_ts_df,
+                sp_inflation_df[['DateTime', 'Regime', 'CPI']],
+                on='DateTime',
+                how='left'
+            )
+            return merged
+        
+        with st.spinner('Merging asset data with regimes...'):
+            merged_asset_data = merge_asset_with_regimes(asset_ts_filtered, sp_inflation_filtered)
+        
+        # Adjust asset prices for inflation if checkbox is checked
+        if adjust_for_inflation:
+            # Adjust prices
+            price_columns = selected_assets  # List of asset columns to adjust
+            merged_asset_data = adjust_prices_for_inflation(merged_asset_data, price_columns, cpi_column='CPI')
+        
         # Ensure 'DateTime' is datetime type in merged_asset_data
         merged_asset_data['DateTime'] = pd.to_datetime(merged_asset_data['DateTime'])
         
@@ -966,14 +1091,16 @@ with tabs[2]:
         performance_results = []
         
         for asset in selected_assets:
+            # Use adjusted prices if the checkbox is checked
+            price_column = f'{asset}_Adjusted' if adjust_for_inflation else asset
             # Get the asset data with regimes
-            asset_data = merged_asset_data[['DateTime', asset, 'Regime']].copy()
-            asset_data = asset_data.dropna(subset=[asset, 'Regime']).copy()
+            asset_data = merged_asset_data[['DateTime', price_column, 'Regime']].copy()
+            asset_data = asset_data.dropna(subset=[price_column, 'Regime']).copy()
             asset_data['Regime'] = asset_data['Regime'].fillna('Unknown')
             asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
             
             # Compute daily returns
-            asset_data['Return'] = asset_data[asset].pct_change()
+            asset_data['Return'] = asset_data[price_column].pct_change()
             asset_data = asset_data.dropna(subset=['Return']).copy()
             
             for regime in asset_data['Regime'].unique():
@@ -982,7 +1109,7 @@ with tabs[2]:
                 if len(regime_data) < 2:
                     # Not enough data to compute metrics
                     performance_results.append({
-                        'Asset': asset,
+                        'Asset': asset + (' (Adjusted)' if adjust_for_inflation else ''),
                         'Regime': regime_labels_dict.get(regime, 'Unknown'),
                         'Average Return': np.nan,
                         'Volatility': np.nan,
@@ -1004,7 +1131,7 @@ with tabs[2]:
                 
                 # Append to results
                 performance_results.append({
-                    'Asset': asset,
+                    'Asset': asset + (' (Adjusted)' if adjust_for_inflation else ''),
                     'Regime': regime_labels_dict.get(regime, 'Unknown'),
                     'Average Return': avg_return,
                     'Volatility': volatility,
@@ -1021,18 +1148,19 @@ with tabs[2]:
         else:
             # Display the table
             st.dataframe(perf_data_filtered)
-    
+        
             # Bar Charts for each metric
             for metric in selected_metrics:
                 st.markdown(f"#### {metric} by Asset and Regime")
                 fig3 = go.Figure()
                 
                 for asset in selected_assets:
-                    asset_perf = perf_data_filtered[perf_data_filtered['Asset'] == asset]
+                    asset_name = asset + (' (Adjusted)' if adjust_for_inflation else '')
+                    asset_perf = perf_data_filtered[perf_data_filtered['Asset'] == asset_name]
                     fig3.add_trace(go.Bar(
                         x=asset_perf['Regime'],
                         y=asset_perf[metric],
-                        name=asset
+                        name=asset_name
                     ))
                 
                 # Update layout
