@@ -320,48 +320,6 @@ if 'Unknown' in sp_inflation_filtered['Regime'].unique():
 # Tabs for different analyses
 tabs = st.tabs(["Regime Visualization", "Asset Performance Over Time", "Performance Metrics per Regime"])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Tab 1: Regime Visualization
 with tabs[0]:
     st.subheader("Regime Visualization")
@@ -536,16 +494,36 @@ with tabs[0]:
         title=f'Moving Averages of S&P 500 and Inflation Rate with Defined Regimes',
         xaxis=dict(title='Date'),
         yaxis=dict(
-            title='S&P 500',
-            titlefont=dict(color='blue'),
-            tickfont=dict(color='blue'),
+            title=dict(
+                text='S&P 500',
+                font=dict(
+                    family='Arial',
+                    size=14,
+                    color='black'
+                )
+            ),
+            tickfont=dict(
+                family='Arial',
+                size=12,
+                color='black'
+            ),
             side='left',
             type='log' if log_scale_sp500 else 'linear'
         ),
         yaxis2=dict(
-            title='Inflation Rate',
-            titlefont=dict(color='red'),
-            tickfont=dict(color='red'),
+            title=dict(
+                text='Inflation Rate',
+                font=dict(
+                    family='Arial',
+                    size=14,
+                    color='black'
+                )
+            ),
+            tickfont=dict(
+                family='Arial',
+                size=12,
+                color='black'
+            ),
             overlaying='y',
             side='right',
             type='log' if log_scale_inflation_rate else 'linear'
@@ -814,42 +792,6 @@ with tabs[0]:
     )
     
     st.plotly_chart(inflation_hist_fig)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # Function to adjust prices for inflation (ensure this is defined before Tabs 2 and 3)
 def adjust_prices_for_inflation(df, price_columns, cpi_column='CPI'):
