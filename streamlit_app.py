@@ -102,6 +102,15 @@ def load_data():
     df_bonds = fetch_and_decode(bonds_url, 'Bonds')
     df_gold = fetch_and_decode(gold_url, 'Gold')
 
+    # --- ENSURE LEGACY METHODOLOGY: Monthly resampling (BM: business month end) ---
+    for df in [df_sp500, df_inflation, df_cpi, df_bonds, df_gold]:
+        if df is not None and not df.empty:
+            df.index = pd.to_datetime(df.index)
+            df.sort_index(inplace=True)
+            # Only resample if not already monthly
+            if not (df.index.inferred_freq and df.index.inferred_freq.startswith('M')):
+                df = df.resample('BM').last()
+
     # Merge asset classes on Date index
     asset_dfs = [df_sp500, df_bonds, df_gold]
     asset_ts_df = None
