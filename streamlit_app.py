@@ -9,6 +9,9 @@ import itertools  # For generating regime combinations
 import requests # Added for API calls
 import json     # Added for API calls
 import base64   # Added for API calls
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 
 # Set page configuration
 st.set_page_config(
@@ -21,8 +24,6 @@ st.set_page_config(
 st.title("Macroeconomic Regimes and Asset Performance Analysis")
 st.write("""
 This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate data, and analyzes asset performance across different regimes.
-Select the moving average type and period for both S&P 500 and Inflation Rate independently, define custom thresholds for both derivatives,
-and explore how regimes affect asset performance over time.
 """)
 
 # --- Helper Functions for API Data Fetching ---
@@ -88,22 +89,20 @@ def fetch_and_decode(url, column_name):
 # Load Data Function
 @st.cache_data
 def load_data():
-    # --- Fetch S&P 500, Inflation, CPI from API ---
+    # --- Fetch S&P 500, Inflation from API ---
     sp500_url = "https://www.longtermtrends.net/data-sp500-since-1871/"
     inflation_url = "https://www.longtermtrends.net/data-inflation/"
-    cpi_url = "https://www.longtermtrends.net/data-cpi/"
     bonds_url = "https://www.longtermtrends.net/data-total-return-bond-index/"
     gold_url = "https://www.longtermtrends.net/data-gold-since-1792/"
 
     # Fetch each dataset (returns df with 'Date' as index or None)
     df_sp500 = fetch_and_decode(sp500_url, 'S&P 500')
     df_inflation = fetch_and_decode(inflation_url, 'Inflation Rate')
-    df_cpi = fetch_and_decode(cpi_url, 'CPI')
     df_bonds = fetch_and_decode(bonds_url, 'Bonds')
     df_gold = fetch_and_decode(gold_url, 'Gold')
 
     # --- ENSURE LEGACY METHODOLOGY: Monthly resampling (BM: business month end) ---
-    for df in [df_sp500, df_inflation, df_cpi, df_bonds, df_gold]:
+    for df in [df_sp500, df_inflation, df_bonds, df_gold]:
         if df is not None and not df.empty:
             df.index = pd.to_datetime(df.index)
             df.sort_index(inplace=True)
@@ -136,10 +135,6 @@ def load_data():
         print(f"DEBUG: Resampling Inflation Rate (initial shape: {df_inflation.shape})")
         df_inflation = df_inflation.resample('BME').last()
         print(f"DEBUG: Resampled Inflation Rate shape: {df_inflation.shape}")
-    if df_cpi is not None:
-        print(f"DEBUG: Resampling CPI (initial shape: {df_cpi.shape})")
-        df_cpi = df_cpi.resample('BME').last()
-        print(f"DEBUG: Resampled CPI shape: {df_cpi.shape}")
 
     # 2. Inner Merge S&P 500 and Inflation Rate
     sp_inflation_df = pd.DataFrame() # Initialize empty df
@@ -159,25 +154,7 @@ def load_data():
         print("ERROR: Both S&P 500 and Inflation data failed to load or resample.")
         # sp_inflation_df remains empty
 
-    # 3. Left Merge CPI
-    if not sp_inflation_df.empty and df_cpi is not None:
-        print("DEBUG: Performing LEFT merge with resampled CPI...")
-        sp_inflation_df = pd.merge(sp_inflation_df, df_cpi, left_index=True, right_index=True, how='left')
-        print(f"DEBUG: Left merge CPI result shape: {sp_inflation_df.shape}")
-    elif 'CPI' not in sp_inflation_df.columns:
-         print("DEBUG: Adding empty CPI column as CPI data was missing.")
-         sp_inflation_df['CPI'] = np.nan
-
-    # 4. Drop rows with NaN in core columns (S&P 500, Inflation Rate) after merge
-    if not sp_inflation_df.empty:
-        initial_rows = len(sp_inflation_df)
-        sp_inflation_df.dropna(subset=['S&P 500', 'Inflation Rate'], inplace=True)
-        dropped_rows = initial_rows - len(sp_inflation_df)
-        if dropped_rows > 0:
-            print(f"DEBUG: Dropped {dropped_rows} rows with NaN in S&P 500 or Inflation Rate after merge.")
-        print(f"DEBUG: Shape after NaN drop: {sp_inflation_df.shape}")
-
-    # 5. Reset index to make 'Date' (or 'DateTime') a column
+    # 3. Reset index to make 'Date' (or 'DateTime') a column
     if not sp_inflation_df.empty:
         sp_inflation_df = sp_inflation_df.reset_index()
         # Ensure the date column is named 'DateTime' as expected downstream
@@ -186,7 +163,6 @@ def load_data():
         elif 'index' in sp_inflation_df.columns and 'DateTime' not in sp_inflation_df.columns:
              sp_inflation_df = sp_inflation_df.rename(columns={'index': 'DateTime'})
         print("DEBUG: Reset index, 'DateTime' column created.")
-
 
     # --- Apply >= 1990 Filter AFTER resampling/merging ---
     filter_date = pd.Timestamp('1990-01-01')
@@ -214,7 +190,7 @@ def load_data():
     print("LOG: Loaded sp_inflation_data: shape={}, min_date={}, max_date={}".format(sp_inflation_df.shape, sp_inflation_df['DateTime'].min(), sp_inflation_df['DateTime'].max()))
     print("LOG: Loaded asset_ts_data: shape={}, min_date={}, max_date={}".format(asset_ts_df.shape, asset_ts_df['DateTime'].min(), asset_ts_df['DateTime'].max()))
     print("DEBUG: load_data function finished.")
-    # Return the processed S&P/Inflation/CPI df and the filtered asset df
+    # Return the processed S&P/Inflation df and the filtered asset df
     return sp_inflation_df.copy(), asset_ts_df.copy()
 
 with st.spinner('Loading data...'):
@@ -239,111 +215,36 @@ st.sidebar.header("User Input Parameters")
 param_tabs = st.sidebar.tabs(["S&P 500 Parameters", "Inflation Rate Parameters"])
 
 # Initialize threshold lists
-sp500_thresholds = []
-inflation_thresholds = []
+sp500_thresholds = [0]
+inflation_thresholds = [0]
 
 # S&P 500 Parameters
 with param_tabs[0]:
     st.subheader("S&P 500 Parameters")
-    # Moving Average Type Selection
-    sp500_ma_type = st.selectbox(
-        "Select Moving Average Type for S&P 500:",
-        options=["SMA", "EMA", "WMA"],
-        index=0,
-        help="""
-        **Simple Moving Average (SMA):** Calculates the average of the last 'n' data points.
-        
-        **Exponential Moving Average (EMA):** Gives more weight to recent data points.
-        
-        **Weighted Moving Average (WMA):** Assigns linearly increasing weights over the moving window, giving more importance to recent data.
-        """
-    )
-
     # Rolling Window Size Input
     sp500_n = st.number_input(
-        "Select n (months) for S&P 500 Moving Average:",
+        "S&P 500 Moving Average Window (months):",
         min_value=1,
-        max_value=120,
+        max_value=24,
         value=12,
         step=1,
-        help="Enter the number of months for the moving average window for S&P 500."
+        key='sp500_n',
+        help="Number of months for the moving average window."
     )
-
-    # Threshold Inputs for S&P 500 MA Derivative
-    st.markdown("### Thresholds for S&P 500 MA Derivative")
-    num_sp500_thresholds = st.number_input(
-        "Number of Thresholds for S&P 500 MA Derivative:",
-        min_value=0,
-        max_value=5,
-        value=1,
-        step=1,
-        key='num_sp500_thresholds',
-        help="Specify the number of thresholds for the S&P 500 MA Derivative."
-    )
-
-    sp500_min_placeholder = st.empty()
-    sp500_max_placeholder = st.empty()
-
-    # Placeholder for thresholds
-    sp500_thresholds_inputs = []
-    for i in range(int(num_sp500_thresholds)):
-        threshold = st.number_input(
-            f"S&P 500 MA Derivative Threshold {i+1}:",
-            key=f"sp500_threshold_{i}",
-            help="Set a threshold value for the S&P 500 MA Derivative."
-        )
-        sp500_thresholds.append(threshold)
 
 # Inflation Rate Parameters
 with param_tabs[1]:
     st.subheader("Inflation Rate Parameters")
-    # Moving Average Type Selection
-    inflation_ma_type = st.selectbox(
-        "Select Moving Average Type for Inflation Rate:",
-        options=["SMA", "EMA", "WMA"],
-        index=0,
-        help="""
-        **Simple Moving Average (SMA):** Calculates the average of the last 'n' data points.
-        
-        **Exponential Moving Average (EMA):** Gives more weight to recent data points.
-        
-        **Weighted Moving Average (WMA):** Assigns linearly increasing weights over the moving window, giving more importance to recent data.
-        """
-    )
-
     # Rolling Window Size Input
     inflation_n = st.number_input(
-        "Select n (months) for Inflation Rate Moving Average:",
+        "Inflation Rate Moving Average Window (months):",
         min_value=1,
-        max_value=120,
+        max_value=24,
         value=12,
         step=1,
-        help="Enter the number of months for the moving average window for Inflation Rate."
+        key='inflation_n',
+        help="Number of months for the moving average window."
     )
-
-    # Threshold Inputs for Inflation Rate MA Derivative
-    st.markdown("### Thresholds for Inflation Rate MA Derivative")
-    num_inflation_thresholds = st.number_input(
-        "Number of Thresholds for Inflation Rate MA Derivative:",
-        min_value=0,
-        max_value=5,
-        value=1,
-        step=1,
-        key='num_inflation_thresholds',
-        help="Specify the number of thresholds for the Inflation Rate MA Derivative."
-    )
-
-    inflation_min_placeholder = st.empty()
-    inflation_max_placeholder = st.empty()
-
-    # Placeholder for thresholds
-    for i in range(int(num_inflation_thresholds)):
-        threshold = st.number_input(
-            f"Inflation Rate MA Derivative Threshold {i+1}:",
-            key=f"inflation_threshold_{i}",
-            help="Set a threshold value for the Inflation Rate MA Derivative."
-        )
-        inflation_thresholds.append(threshold)
 
 # Data range selection
 min_date = max(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min())
@@ -366,21 +267,28 @@ color_palette = [
     'blue', 'gray', 'black', 'teal', 'navy', 'maroon'
 ]
 
+# Regime color mapping for background shading
+regime_bg_colors = {
+    1: 'rgba(0, 128, 255, 0.13)',   # Rising Growth, Rising Inflation - Light Blue
+    2: 'rgba(0, 255, 0, 0.13)',     # Rising Growth, Falling Inflation - Light Green
+    3: 'rgba(255, 0, 0, 0.13)',     # Falling Growth, Rising Inflation - Light Red
+    4: 'rgba(255, 255, 0, 0.13)'    # Falling Growth, Falling Inflation - Light Yellow
+}
+
+# Asset and macro color mapping
+asset_colors = {
+    'S&P 500': 'blue',
+    'Gold': 'gold',
+    'Bonds': 'black',
+    'Inflation Rate': 'red',
+    'S&P 500 MA': 'blue',
+    'Inflation Rate MA': 'red',
+}
+
 # Caching dynamic computations
 @st.cache_data
-def compute_moving_average(data, window_size, ma_type='SMA'):
-    if ma_type == 'SMA':
-        return data.rolling(window=window_size).mean()
-    elif ma_type == 'EMA':
-        return data.ewm(span=window_size, adjust=False).mean()
-    elif ma_type == 'WMA':
-        # Compute WMA
-        weights = np.arange(1, window_size + 1)
-        def wma(x):
-            return np.dot(x, weights) / weights.sum()
-        return data.rolling(window=window_size).apply(wma, raw=True)
-    else:
-        raise ValueError("Unsupported moving average type.")
+def compute_moving_average(data, window_size):
+    return data.rolling(window=window_size).mean()
 
 @st.cache_data
 def compute_derivative(ma_data, method='difference'):
@@ -419,39 +327,40 @@ with st.spinner('Filtering data...'):
 # Compute Moving Averages
 with st.spinner('Computing Moving Averages...'):
     sp_inflation_filtered['S&P 500 MA'] = compute_moving_average(
-        sp_inflation_filtered['S&P 500'], window_size=sp500_n, ma_type=sp500_ma_type
+        sp_inflation_filtered['S&P 500'], window_size=sp500_n
     )
     sp_inflation_filtered['Inflation Rate MA'] = compute_moving_average(
-        sp_inflation_filtered['Inflation Rate'], window_size=inflation_n, ma_type=inflation_ma_type
+        sp_inflation_filtered['Inflation Rate'], window_size=inflation_n
     )
     print("DEBUG: Moving averages computed.") # Added debug print
 
 # Compute Derivatives
 with st.spinner('Computing Derivatives...'):
-    sp_inflation_filtered['S&P 500 MA Derivative'] = compute_derivative(
+    sp_inflation_filtered['S&P 500 MA Growth'] = compute_derivative(
         sp_inflation_filtered['S&P 500 MA'], method='difference'
     )
-    sp_inflation_filtered['Inflation Rate MA Derivative'] = compute_derivative(
+    sp_inflation_filtered['Inflation Rate MA Growth'] = compute_derivative(
         sp_inflation_filtered['Inflation Rate MA'], method='difference'
     )
     print("DEBUG: Derivatives computed.") # Added debug print
 
 # Now that we have the derivatives, we can get min and max values
-sp500_deriv = sp_inflation_filtered['S&P 500 MA Derivative'].dropna()
-inflation_deriv = sp_inflation_filtered['Inflation Rate MA Derivative'].dropna()
+sp500_growth = sp_inflation_filtered['S&P 500 MA Growth'].dropna()
+inflation_growth = sp_inflation_filtered['Inflation Rate MA Growth'].dropna()
 
-sp500_min = float(sp500_deriv.min())
-sp500_max = float(sp500_deriv.max())
-inflation_min = float(inflation_deriv.min())
-inflation_max = float(inflation_deriv.max())
+sp500_min = float(sp500_growth.min())
+sp500_max = float(sp500_growth.max())
+inflation_min = float(inflation_growth.min())
+inflation_max = float(inflation_growth.max())
 
 # Update placeholders with min and max values
-with param_tabs[0]:
-    sp500_min_placeholder.markdown(f"Minimum S&P 500 MA Derivative: **{sp500_min:.4f}**")
-    sp500_max_placeholder.markdown(f"Maximum S&P 500 MA Derivative: **{sp500_max:.4f}**")
-with param_tabs[1]:
-    inflation_min_placeholder.markdown(f"Minimum Inflation Rate MA Derivative: **{inflation_min:.4f}**")
-    inflation_max_placeholder.markdown(f"Maximum Inflation Rate MA Derivative: **{inflation_max:.4f}**")
+# REMOVED: No longer show min/max S&P 500 MA Growth or Inflation Rate MA Growth in sidebar
+# with param_tabs[0]:
+#     st.markdown(f"Minimum S&P 500 MA Growth: **{sp500_min:.4f}**")
+#     st.markdown(f"Maximum S&P 500 MA Growth: **{sp500_max:.4f}**")
+# with param_tabs[1]:
+#     st.markdown(f"Minimum Inflation Rate MA Growth: **{inflation_min:.4f}**")
+#     st.markdown(f"Maximum Inflation Rate MA Growth: **{inflation_max:.4f}**")
 
 # Validate thresholds and sort them
 sp500_thresholds = sorted([t for t in sp500_thresholds if sp500_min <= t <= sp500_max])
@@ -461,32 +370,50 @@ inflation_thresholds = sorted([t for t in inflation_thresholds if inflation_min 
 sp500_intervals = [sp500_min] + sp500_thresholds + [sp500_max]
 inflation_intervals = [inflation_min] + inflation_thresholds + [inflation_max]
 
-# Generate regime combinations
-regime_combinations = list(itertools.product(
-    zip(sp500_intervals[:-1], sp500_intervals[1:]),
-    zip(inflation_intervals[:-1], inflation_intervals[1:])
-))
-
-# Create regime definitions
-regime_definitions = []
-for idx, ((sp500_lower, sp500_upper), (inflation_lower, inflation_upper)) in enumerate(regime_combinations):
-    regime_definitions.append({
-        'Regime': idx + 1,
-        'S&P 500 Lower': sp500_lower,
-        'S&P 500 Upper': sp500_upper,
-        'Inflation Lower': inflation_lower,
-        'Inflation Upper': inflation_upper,
-        'Label': f"Regime {idx + 1}"
-    })
-
+# Elegant regime definitions: Only check for greater/smaller than 0 for both growth rates
+regime_definitions = [
+    {
+        'Regime': 1,
+        'S&P 500 Lower': 0,
+        'S&P 500 Upper': float('inf'),
+        'Inflation Lower': 0,
+        'Inflation Upper': float('inf'),
+        'Label': 'Rising Growth & Rising Inflation'
+    },
+    {
+        'Regime': 2,
+        'S&P 500 Lower': 0,
+        'S&P 500 Upper': float('inf'),
+        'Inflation Lower': float('-inf'),
+        'Inflation Upper': 0,
+        'Label': 'Rising Growth & Falling Inflation'
+    },
+    {
+        'Regime': 3,
+        'S&P 500 Lower': float('-inf'),
+        'S&P 500 Upper': 0,
+        'Inflation Lower': 0,
+        'Inflation Upper': float('inf'),
+        'Label': 'Falling Growth & Rising Inflation'
+    },
+    {
+        'Regime': 4,
+        'S&P 500 Lower': float('-inf'),
+        'S&P 500 Upper': 0,
+        'Inflation Lower': float('-inf'),
+        'Inflation Upper': 0,
+        'Label': 'Falling Growth & Falling Inflation'
+    }
+]
 # Assign colors and labels to regimes
-regime_colors = {}
-regime_labels_dict = {}
-for i, regime in enumerate(regime_definitions):
-    regime_num = regime['Regime']
-    color = color_palette[i % len(color_palette)]
-    regime_colors[regime_num] = color
-    regime_labels_dict[regime_num] = regime['Label']
+regime_colors = {1: 'green', 2: 'yellow', 3: 'red', 4: 'blue'}
+regime_labels_dict = {
+    1: 'Rising Growth & Rising Inflation',
+    2: 'Rising Growth & Falling Inflation',
+    3: 'Falling Growth & Rising Inflation',
+    4: 'Falling Growth & Falling Inflation',
+    'Unknown': 'Unknown'
+}
 
 # Function to assign regimes based on thresholds
 @st.cache_data
@@ -497,10 +424,10 @@ def assign_regimes(sp_inflation_df, regime_definitions):
     # Iterate over regimes and assign regime numbers
     for regime in regime_definitions:
         mask = (
-            (sp_inflation_df['S&P 500 MA Derivative'] >= regime['S&P 500 Lower']) &
-            (sp_inflation_df['S&P 500 MA Derivative'] < regime['S&P 500 Upper']) &
-            (sp_inflation_df['Inflation Rate MA Derivative'] >= regime['Inflation Lower']) &
-            (sp_inflation_df['Inflation Rate MA Derivative'] < regime['Inflation Upper'])
+            (sp_inflation_df['S&P 500 MA Growth'] >= regime['S&P 500 Lower']) &
+            (sp_inflation_df['S&P 500 MA Growth'] < regime['S&P 500 Upper']) &
+            (sp_inflation_df['Inflation Rate MA Growth'] >= regime['Inflation Lower']) &
+            (sp_inflation_df['Inflation Rate MA Growth'] < regime['Inflation Upper'])
         )
         sp_inflation_df.loc[mask, 'Regime'] = regime['Regime']
     return sp_inflation_df
@@ -517,7 +444,7 @@ if 'Unknown' in sp_inflation_filtered['Regime'].unique():
     regime_labels_dict['Unknown'] = 'Unknown'
 
 # Tabs for different analyses
-tabs = st.tabs(["Regime Visualization", "Asset Performance Over Time", "Performance Metrics per Regime"])
+tabs = st.tabs(["Regime Visualization", "Asset Performance & Metrics"])
 print("DEBUG: Starting Tab rendering.") # Added debug print
 
 # Tab 1: Regime Visualization
@@ -525,15 +452,13 @@ with tabs[0]:
     st.subheader("Regime Visualization")
     print("DEBUG: Rendering Tab 1: Regime Visualization.") # Added debug print
     
-    # Checkboxes to show/hide curves
-    show_sp500_ma = st.checkbox(f"Show S&P 500 {sp500_ma_type} ({sp500_n}m)", value=True, key='regime_sp500_ma')
-    show_inflation_ma = st.checkbox(f"Show Inflation Rate {inflation_ma_type} ({inflation_n}m)", value=True, key='regime_inflation_ma')
-    show_sp500 = st.checkbox("Show S&P 500", value=False, key='regime_sp500')
-    show_inflation = st.checkbox("Show Inflation Rate", value=False, key='regime_inflation')
-    
-    # Checkboxes to toggle log scales
-    log_scale_sp500 = st.checkbox("Log Scale for S&P 500 Axis", value=False, key='regime_log_sp500')
-    log_scale_inflation_rate = st.checkbox("Log Scale for Inflation Rate Axis", value=False, key='regime_log_inflation')
+    # Hardcoded settings for chart 1 (enable all except log scales)
+    show_sp500_ma = True
+    show_inflation_ma = True
+    show_sp500 = True
+    show_inflation = True
+    log_scale_sp500 = False
+    log_scale_inflation_rate = False
     
     # Initialize the plot
     fig = go.Figure()
@@ -553,7 +478,7 @@ with tabs[0]:
     print("DEBUG: Tab 1 - Starting regime period collection loop.") # Added debug print
     loop_count = 0
     for (regime, _), group in grouped:
-        color = regime_colors.get(regime, 'grey')
+        color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
         start_date_regime = group['DateTime'].iloc[0]
         end_date_regime = group['DateTime'].iloc[-1]
         regime_periods.append({
@@ -577,7 +502,7 @@ with tabs[0]:
     for i in range(len(regime_periods_df)):
         start_date_regime = regime_periods_df.loc[i, 'Start Date']
         regime = regime_periods_df.loc[i, 'Regime']
-        color = regime_colors.get(regime, 'grey')
+        color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
         if i < len(regime_periods_df) - 1:
             # Set end date to one day before the next regime's start date
             end_date_regime = regime_periods_df.loc[i+1, 'Start Date'] - pd.Timedelta(days=1)
@@ -592,7 +517,7 @@ with tabs[0]:
             x0=start_date_regime,
             x1=end_date_regime,
             fillcolor=color,
-            opacity=0.3,
+            opacity=1.0,
             layer="below",
             line_width=0
         )
@@ -637,100 +562,74 @@ with tabs[0]:
 
     # Add traces based on user selection, reusing the customdata array
     print("DEBUG: Tab 1 - Starting add_trace section.") # Added debug print
+    hover_regime = 'Regime: %{customdata[0]}<extra></extra>'
     if show_sp500_ma:
-        print("DEBUG: Tab 1 - Preparing S&P 500 MA trace...") # Added debug print
+        print("DEBUG: Tab 1 - Preparing S&P 500 MA trace...")
         # REUSE customdata
         fig.add_trace(go.Scatter(
             x=sp_inflation_filtered['DateTime'],
             y=sp_inflation_filtered['S&P 500 MA'], # Use original MA data for plotting Y
             mode='lines',
-            name=f'S&P 500 {sp500_ma_type} ({sp500_n}m)',
-            line=dict(color='blue'),
+            name=f'S&P 500 MA ({sp500_n}m)',
+            line=dict(color=asset_colors['S&P 500 MA']),
             yaxis='y1',
             customdata=customdata, # Use the pre-calculated customdata
-            hovertemplate=(
-                'Date: %{x|%Y-%m-%d}<br>' +
-                'Regime: %{customdata[0]}<br>' +
-                'S&P 500: %{customdata[1]:.2f}<br>' +
-                f'S&P 500 {sp500_ma_type}: ' + '%{customdata[2]:.2f}<br>' +
-                'Inflation Rate: %{customdata[3]:.2f}<br>' +
-                f'Inflation Rate {inflation_ma_type}: ' + '%{customdata[4]:.2f}<extra></extra>'
-            )
+            hovertemplate='S&P 500 MA: %{customdata[2]:.2f}<br>' + hover_regime
         ))
-        print("DEBUG: Tab 1 - Added S&P 500 MA trace.") # Added debug print
-
+        print("DEBUG: Tab 1 - Added S&P 500 MA trace.")
     if show_inflation_ma:
-        print("DEBUG: Tab 1 - Preparing Inflation Rate MA trace...") # Added debug print
+        print("DEBUG: Tab 1 - Preparing Inflation Rate MA trace...")
         # REUSE customdata
         fig.add_trace(go.Scatter(
             x=sp_inflation_filtered['DateTime'],
             y=sp_inflation_filtered['Inflation Rate MA'], # Use original MA data for plotting Y
             mode='lines',
-            name=f'Inflation Rate {inflation_ma_type} ({inflation_n}m)',
-            line=dict(color='red'),
+            name=f'Inflation Rate MA ({inflation_n}m)',
+            line=dict(color=asset_colors['Inflation Rate MA']),
             yaxis='y2',
             customdata=customdata, # Use the pre-calculated customdata
-            hovertemplate=(
-                'Date: %{x|%Y-%m-%d}<br>' +
-                'Regime: %{customdata[0]}<br>' +
-                'S&P 500: %{customdata[1]:.2f}<br>' +
-                f'S&P 500 {sp500_ma_type}: ' + '%{customdata[2]:.2f}<br>' +
-                'Inflation Rate: %{customdata[3]:.2f}<br>' +
-                f'Inflation Rate {inflation_ma_type}: ' + '%{customdata[4]:.2f}<extra></extra>'
-            )
+            hovertemplate='Inflation Rate MA: %{customdata[4]:.2f}<br>' + hover_regime
         ))
-        print("DEBUG: Tab 1 - Added Inflation Rate MA trace.") # Added debug print
-
+        print("DEBUG: Tab 1 - Added Inflation Rate MA trace.")
     if show_sp500:
-        print("DEBUG: Tab 1 - Preparing S&P 500 trace...") # Added debug print
+        print("DEBUG: Tab 1 - Preparing S&P 500 trace...")
         # REUSE customdata
         fig.add_trace(go.Scatter(
             x=sp_inflation_filtered['DateTime'],
             y=sp_inflation_filtered['S&P 500'], # Use original S&P data for plotting Y
             mode='lines',
             name='S&P 500',
-            line=dict(color='blue', dash='dot'),
+            line=dict(color=asset_colors['S&P 500'], dash='dot'),
             yaxis='y1',
             customdata=customdata, # Use the pre-calculated customdata
-            hovertemplate=(
-                'Date: %{x|%Y-%m-%d}<br>' +
-                'Regime: %{customdata[0]}<br>' +
-                'S&P 500: %{customdata[1]:.2f}<br>' +
-                f'S&P 500 {sp500_ma_type}: ' + '%{customdata[2]:.2f}<br>' +
-                'Inflation Rate: %{customdata[3]:.2f}<br>' +
-                f'Inflation Rate {inflation_ma_type}: ' + '%{customdata[4]:.2f}<extra></extra>'
-            )
+            hovertemplate='S&P 500: %{customdata[1]:.2f}<br>' + hover_regime
         ))
-        print("DEBUG: Tab 1 - Added S&P 500 trace.") # Added debug print
-
+        print("DEBUG: Tab 1 - Added S&P 500 trace.")
     if show_inflation:
-        print("DEBUG: Tab 1 - Preparing Inflation Rate trace...") # Added debug print
+        print("DEBUG: Tab 1 - Preparing Inflation Rate trace...")
         # REUSE customdata
         fig.add_trace(go.Scatter(
             x=sp_inflation_filtered['DateTime'],
             y=sp_inflation_filtered['Inflation Rate'], # Use original Inflation data for plotting Y
             mode='lines',
             name='Inflation Rate',
-            line=dict(color='red', dash='dot'),
+            line=dict(color=asset_colors['Inflation Rate'], dash='dot'),
             yaxis='y2',
             customdata=customdata, # Use the pre-calculated customdata
-            hovertemplate=(
-                'Date: %{x|%Y-%m-%d}<br>' +
-                'Regime: %{customdata[0]}<br>' +
-                'S&P 500: %{customdata[1]:.2f}<br>' +
-                f'S&P 500 {sp500_ma_type}: ' + '%{customdata[2]:.2f}<br>' +
-                'Inflation Rate: %{customdata[3]:.2f}<br>' +
-                f'Inflation Rate {inflation_ma_type}: ' + '%{customdata[4]:.2f}<extra></extra>'
-            )
+            hovertemplate='Inflation Rate: %{customdata[3]:.2f}<br>' + hover_regime
         ))
-        print("DEBUG: Tab 1 - Added Inflation Rate trace.") # Added debug print
-
-    print("DEBUG: Tab 1 - Finished add_trace section.") # Added debug print
+        print("DEBUG: Tab 1 - Added Inflation Rate trace.")
+    print("DEBUG: Tab 1 - Finished add_trace section.")
 
     # Update layout with optional log scales
     print("DEBUG: Tab 1 - Updating layout...") # Added debug print
     fig.update_layout(
-        title=f'Moving Averages of S&P 500 and Inflation Rate with Defined Regimes',
+        title={
+            'text': 'Macro Regime Timeline: S&P 500 & Inflation',
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+        },
         xaxis=dict(title='Date'),
         yaxis=dict(
             title=dict(
@@ -776,7 +675,8 @@ with tabs[0]:
             font_size=12,
             font_family="Arial",
             font_color="black"
-        )
+        ),
+        showlegend=False
     )
     print("DEBUG: Tab 1 - Layout updated.") # Added debug print
 
@@ -786,46 +686,17 @@ with tabs[0]:
     st.plotly_chart(fig, use_container_width=False)
     print("DEBUG: Tab 1 Plotting complete.") # Added debug print
     
-    # Create Curve Legend under the graph
-    st.markdown("### Curve Legend")
-    curve_legend_html = "<ul style='list-style-type:none;'>"
-    
-    if show_sp500_ma:
-        curve_legend_html += f"<li><span style='color:blue;'>■</span> S&P 500 {sp500_ma_type} ({sp500_n}m)</li>"
-    if show_inflation_ma:
-        curve_legend_html += f"<li><span style='color:red;'>■</span> Inflation Rate {inflation_ma_type} ({inflation_n}m)</li>"
-    if show_sp500:
-        curve_legend_html += f"<li><span style='border-bottom: 2px dashed blue; display:inline-block; width:15px; margin-right:5px;'></span> S&P 500</li>"
-    if show_inflation:
-        curve_legend_html += f"<li><span style='border-bottom: 2px dashed red; display:inline-block; width:15px; margin-right:5px;'></span> Inflation Rate</li>"
-    
-    curve_legend_html += "</ul>"
-    st.markdown(curve_legend_html, unsafe_allow_html=True)
-    
     # Create Regime Legend under the graph with regime definitions
     st.markdown("### Regime Legend with Definitions")
     regime_legend_html = "<ul style='list-style-type:none;'>"
     
     # Add numeric regimes
     for regime_num in sorted(regime_labels_dict.keys(), key=lambda x: int(x) if x != 'Unknown' else float('inf')):
+        if regime_num == 'Unknown':
+            continue
         color = regime_colors.get(regime_num, 'grey')
         label = regime_labels_dict.get(regime_num, 'Unknown')
-        if regime_num != 'Unknown':
-            # Get the regime definition
-            regime_def = next((regime for regime in regime_definitions if regime['Regime'] == regime_num), None)
-            if regime_def:
-                sp500_lower = regime_def['S&P 500 Lower']
-                sp500_upper = regime_def['S&P 500 Upper']
-                inflation_lower = regime_def['Inflation Lower']
-                inflation_upper = regime_def['Inflation Upper']
-                definition = f"S&P 500 MA Derivative: [{sp500_lower:.4f}, {sp500_upper:.4f}), Inflation Rate MA Derivative: [{inflation_lower:.4f}, {inflation_upper:.4f})"
-            else:
-                definition = "Definition not found"
-        else:
-            definition = "Unknown"
-        
-        regime_legend_html += f"<li><span style='background-color:{color}; width:15px; height:15px; display:inline-block; margin-right:5px;'></span> {label} - {definition}</li>"
-    
+        regime_legend_html += f"<li><span style='background-color:{color}; width:15px; height:15px; display:inline-block; margin-right:5px;'></span> <b>{label}</b></li>"
     regime_legend_html += "</ul>"
     st.markdown(regime_legend_html, unsafe_allow_html=True)
     
@@ -853,38 +724,49 @@ with tabs[0]:
     # Add Regime Diagrams under the legends
     st.markdown("## Regime Diagrams")
     
-    ### Diagram 1: 2D Scatter Plot of Derivative Values with Regime Boundaries
-    st.markdown("### 1. 2D Scatter Plot of Derivative Values with Regime Boundaries")
+    ### Diagram 1: 2D Scatter Plot of Growth Rates with Regime Boundaries
+    st.markdown("### 1. 2D Scatter Plot of Growth Rates with Regime Boundaries")
     print("DEBUG: Tab 1 - Preparing Scatter Plot...") # Added debug print
     # Prepare data for plotting
-    derivative_df = sp_inflation_filtered[['DateTime', 'S&P 500 MA Derivative', 'Inflation Rate MA Derivative', 'Regime']].dropna()
+    derivative_df = sp_inflation_filtered[['DateTime', 'S&P 500 MA Growth', 'Inflation Rate MA Growth', 'Regime']].dropna()
     derivative_df['Regime Label'] = derivative_df['Regime'].map(regime_labels_dict)
     
-    # Create the scatter plot
+    # Sort by DateTime
+    derivative_df = derivative_df.sort_values('DateTime').reset_index(drop=True)
+    n_points = len(derivative_df)
+    window_size = 50
+    # Show only the latest 50 data points for scatterplot
+    window_df = derivative_df.iloc[-window_size:]
+    # Get the actual date span for the title
+    if not window_df.empty:
+        date_start = window_df['DateTime'].iloc[0].strftime('%Y-%m-%d')
+        date_end = window_df['DateTime'].iloc[-1].strftime('%Y-%m-%d')
+        date_span = f"{date_start} to {date_end}"
+    else:
+        date_span = "N/A"
+    # Black to yellow colormap for gradient
+    from matplotlib.colors import LinearSegmentedColormap
+    by_cmap = LinearSegmentedColormap.from_list('by', ['black', 'yellow'], N=window_size)
+    colors = [mcolors.to_hex(by_cmap(i/(window_size-1))) for i in range(len(window_df))]
     scatter_fig = go.Figure()
-    
-    for regime in derivative_df['Regime'].unique():
-        regime_data = derivative_df[derivative_df['Regime'] == regime]
-        regime_label = regime_labels_dict.get(regime, 'Unknown')
-        color = regime_colors.get(regime, 'grey')
-    
-        scatter_fig.add_trace(go.Scatter(
-            x=regime_data['S&P 500 MA Derivative'],
-            y=regime_data['Inflation Rate MA Derivative'],
-            mode='markers',
-            name=regime_label,
-            marker=dict(color=color),
-            customdata=np.stack((regime_data['DateTime'],), axis=-1),
-            hovertemplate=(
-                'Date: %{customdata[0]|%Y-%m-%d}<br>' +
-                'S&P 500 MA Derivative: %{x:.4f}<br>' +
-                'Inflation Rate MA Derivative: %{y:.4f}<br>' +
-                'Regime: ' + str(regime_label) + '<extra></extra>'
-            )
-        ))
-    
-    # Add regime boundaries
-    # Add vertical lines for S&P 500 thresholds
+    scatter_fig.add_trace(go.Scatter(
+        x=window_df['S&P 500 MA Growth'],
+        y=window_df['Inflation Rate MA Growth'],
+        mode='lines+markers',
+        marker=dict(
+            color=colors,
+            size=12,
+            line=dict(width=1, color='black')
+        ),
+        line=dict(color='#444444', width=2, dash='solid'),
+        text=window_df['DateTime'].dt.strftime('%Y-%m-%d'),
+        hovertemplate=(
+            'Date: %{text}<br>' +
+            'S&P 500 MA Growth: %{x:.4f}<br>' +
+            'Inflation Rate MA Growth: %{y:.4f}<extra></extra>'
+        ),
+        name=date_span
+    ))
     for threshold in sp500_thresholds:
         scatter_fig.add_shape(
             type="line",
@@ -894,7 +776,6 @@ with tabs[0]:
             y1=inflation_max,
             line=dict(color="black", dash="dash")
         )
-    # Add horizontal lines for Inflation Rate thresholds
     for threshold in inflation_thresholds:
         scatter_fig.add_shape(
             type="line",
@@ -904,485 +785,312 @@ with tabs[0]:
             y1=threshold,
             line=dict(color="black", dash="dash")
         )
-    
-    # Update layout
     scatter_fig.update_layout(
-        xaxis_title='S&P 500 MA Derivative',
-        yaxis_title='Inflation Rate MA Derivative',
-        title='Scatter Plot of Derivatives with Regime Boundaries',
-        legend_title='Regime',
+        xaxis_title='S&P 500 MA Growth',
+        yaxis_title='Inflation Rate MA Growth',
+        title={
+            'text': f'Market & Inflation Momentum ({date_span})',
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+        },
         width=800,
         height=600,
+        showlegend=False
     )
-    
     st.plotly_chart(scatter_fig)
     print("DEBUG: Tab 1 Scatter Plot complete.") # Added debug print
     
-    ### Diagram 2: Interactive Heatmap of Derivative Density with Regime Boundaries
-    st.markdown("### 2. Interactive Heatmap of Derivative Density with Regime Boundaries")
-    print("DEBUG: Tab 1 - Preparing Heatmap...") # Added debug print
-    # Create 2D histogram
-    heatmap_fig = go.Figure()
-    
-    heatmap_fig.add_trace(go.Histogram2d(
-        x=derivative_df['S&P 500 MA Derivative'],
-        y=derivative_df['Inflation Rate MA Derivative'],
-        colorscale='Viridis',
-        reversescale=True,
-        xbins=dict(
-            start=sp500_min,
-            end=sp500_max,
-            size=(sp500_max - sp500_min)/50  # Adjust bin size as needed
+    ### Diagram 2: Interactive Scatter Plot of Growth Values with Regime Boundaries (All Data, Color Gradient)
+    st.markdown("### 2. Interactive Scatter Plot of Growth Values with Regime Boundaries (All Data, Color Gradient)")
+    print("DEBUG: Tab 1 - Preparing All-Data Scatter Plot with Color Gradient...")
+    all_df = sp_inflation_filtered[['DateTime', 'S&P 500 MA Growth', 'Inflation Rate MA Growth', 'Regime']].dropna().sort_values('DateTime')
+    N_all = len(all_df)
+    by_cmap_all = LinearSegmentedColormap.from_list('by', ['black', 'yellow'], N=N_all)
+    all_colors = [mcolors.to_hex(by_cmap_all(i/(N_all-1))) for i in range(N_all)]
+    all_scatter_fig = go.Figure()
+    all_scatter_fig.add_trace(go.Scatter(
+        x=all_df['S&P 500 MA Growth'],
+        y=all_df['Inflation Rate MA Growth'],
+        mode='markers',
+        marker=dict(
+            color=all_colors,
+            size=10,
+            line=dict(width=1, color='black')
         ),
-        ybins=dict(
-            start=inflation_min,
-            end=inflation_max,
-            size=(inflation_max - inflation_min)/50
+        text=all_df['DateTime'].dt.strftime('%Y-%m-%d'),
+        hovertemplate=(
+            'Date: %{text}<br>' +
+            'S&P 500 MA Growth: %{x:.4f}<br>' +
+            'Inflation Rate MA Growth: %{y:.4f}<extra></extra>'
         ),
-        colorbar=dict(title='Density')
+        name='All Data (Oldest to Newest)'
     ))
-    
-    # Add regime boundaries
     for threshold in sp500_thresholds:
-        heatmap_fig.add_shape(
+        all_scatter_fig.add_shape(
             type="line",
             x0=threshold,
             y0=inflation_min,
             x1=threshold,
             y1=inflation_max,
-            line=dict(color="white", dash="dash")
+            line=dict(color="black", dash="dash")
         )
     for threshold in inflation_thresholds:
-        heatmap_fig.add_shape(
+        all_scatter_fig.add_shape(
             type="line",
             x0=sp500_min,
             y0=threshold,
             x1=sp500_max,
             y1=threshold,
-            line=dict(color="white", dash="dash")
+            line=dict(color="black", dash="dash")
         )
-    
-    heatmap_fig.update_layout(
-        xaxis_title='S&P 500 MA Derivative',
-        yaxis_title='Inflation Rate MA Derivative',
-        title='Heatmap of Derivative Density with Regime Boundaries',
+    all_scatter_fig.update_layout(
+        xaxis_title='S&P 500 MA Growth',
+        yaxis_title='Inflation Rate MA Growth',
+        title={
+            'text': 'Scatter Plot of Growth with Regime Boundaries (All Data, Color Gradient)',
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+        },
         width=800,
         height=600,
-    )
-    
-    st.plotly_chart(heatmap_fig)
-    print("DEBUG: Tab 1 Heatmap complete.") # Added debug print
-    
-    ### Diagram 3: Threshold Distribution Histograms
-    st.markdown("### 3. Threshold Distribution Histograms")
-    
-    # Histogram for S&P 500 MA Derivative
-    st.markdown("#### S&P 500 MA Derivative Distribution")
-    print("DEBUG: Tab 1 - Preparing SP500 Hist...") # Added debug print
-    sp500_hist_fig = go.Figure()
-    
-    sp500_hist_fig.add_trace(go.Histogram(
-        x=derivative_df['S&P 500 MA Derivative'],
-        nbinsx=50,
-        marker_color='blue',
-        opacity=0.7,
-        name='S&P 500 MA Derivative'
-    ))
-    
-    # Add vertical lines for thresholds
-    for threshold in sp500_thresholds:
-        sp500_hist_fig.add_vline(
-            x=threshold,
-            line=dict(color='red', dash='dash'),
-            annotation_text=f"{threshold:.4f}",
-            annotation_position="top left"
-        )
-    
-    sp500_hist_fig.update_layout(
-        xaxis_title='S&P 500 MA Derivative',
-        yaxis_title='Count',
-        width=800,
-        height=400,
         showlegend=False
     )
-    
-    st.plotly_chart(sp500_hist_fig)
-    print("DEBUG: Tab 1 SP500 Hist complete.") # Added debug print
-    
-    # Histogram for Inflation Rate MA Derivative
-    st.markdown("#### Inflation Rate MA Derivative Distribution")
-    print("DEBUG: Tab 1 - Preparing Inflation Hist...") # Added debug print
-    inflation_hist_fig = go.Figure()
-    
-    inflation_hist_fig.add_trace(go.Histogram(
-        x=derivative_df['Inflation Rate MA Derivative'],
-        nbinsx=50,
-        marker_color='green',
-        opacity=0.7,
-        name='Inflation Rate MA Derivative'
-    ))
-    
-    # Add vertical lines for thresholds
-    for threshold in inflation_thresholds:
-        inflation_hist_fig.add_vline(
-            x=threshold,
-            line=dict(color='red', dash='dash'),
-            annotation_text=f"{threshold:.4f}",
-            annotation_position="top left"
-        )
-    
-    inflation_hist_fig.update_layout(
-        xaxis_title='Inflation Rate MA Derivative',
-        yaxis_title='Count',
-        width=800,
-        height=400,
-        showlegend=False
-    )
-    
-    st.plotly_chart(inflation_hist_fig)
-    print("DEBUG: Tab 1 Inflation Hist complete.") # Added debug print
+    st.plotly_chart(all_scatter_fig)
+    print("DEBUG: Tab 1 All-Data Scatter Plot complete.")
 
-# Function to adjust prices for inflation (ensure this is defined before Tabs 2 and 3)
-def adjust_prices_for_inflation(df, price_columns, cpi_column='CPI'):
-    base_cpi = df[cpi_column].iloc[0]
-    for col in price_columns:
-        df[f'{col}_Adjusted'] = df[col] * (base_cpi / df[cpi_column])
-    return df
+# Hardcode assets and metrics for all downstream logic
+assets_to_display = ['S&P 500', 'Gold', 'Bonds']
+metrics_to_display = ['Average Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown']
 
-# Sidebar for Asset Settings (ensure this is before Tabs 2 and 3 so that 'selected_assets' and 'adjust_for_inflation' are accessible)
-st.sidebar.header("Asset Settings")
-# Sidebar Asset Selection
-asset_options = list(asset_ts_data.columns)
-asset_options.remove('DateTime')
-# Ensure S&P 500 is in the default selection, along with Bonds and Gold
-for asset in ['S&P 500', 'Bonds', 'Gold']:
-    if asset not in asset_options:
-        asset_options.append(asset)
-selected_assets = st.sidebar.multiselect("Select Assets to Display:", asset_options, default=['S&P 500', 'Gold', 'Bonds'])
-# Checkbox for inflation adjustment
-adjust_for_inflation = st.sidebar.checkbox("Adjust Prices for Inflation (CPI)", value=False)
-
-# Tab 2: Asset Performance Over Time
+# Tab 2: Asset Performance Over Time + Performance Metrics per Regime (MERGED)
 with tabs[1]:
     st.subheader("Asset Performance Over Time")
-    print("DEBUG: Rendering Tab 2: Asset Performance.") # Added debug print
+    print("DEBUG: Rendering Tab 2: Asset Performance & Metrics (MERGED).") # Added debug print
     
-    # Add checkbox for log scale within the tab (this is fine)
-    log_scale_normalized = st.checkbox(
-        "Log Scale for Normalized Prices", value=False, key='log_scale_normalized'
-    )
+    # Remove log scale checkbox from Tab 2
+    log_scale_normalized = False
     
-    # Check if assets are selected
-    if not selected_assets:
-        st.warning("Please select at least one asset to display.")
-    else:
-        # Merge asset data with regimes
-        @st.cache_data
-        def merge_asset_with_regimes(asset_ts_df, sp_inflation_df):
-            merged = pd.merge(
-                asset_ts_df,
-                sp_inflation_df[['DateTime', 'Regime', 'CPI']],
-                on='DateTime',
-                how='left'
-            )
-            return merged
-        
-        with st.spinner('Merging asset data with regimes...'):
-            merged_asset_data = merge_asset_with_regimes(asset_ts_filtered, sp_inflation_filtered)
-            print(f"DEBUG: Tab 2 - Asset data merged. Shape: {merged_asset_data.shape}") # Added debug print
-        
-        # Adjust asset prices for inflation if checkbox is checked
-        if adjust_for_inflation:
-            # Adjust prices
-            price_columns = selected_assets  # List of asset columns to adjust
-            merged_asset_data = adjust_prices_for_inflation(merged_asset_data, price_columns, cpi_column='CPI')
-        
-        # Add 'Regime' to asset data and fill NaN values
-        merged_asset_data['Regime'] = merged_asset_data['Regime'].fillna('Unknown')
-        
-        # Initialize the plot
-        fig2 = go.Figure()
-        
-        # Add shaded regions for regimes (updated to handle continuous periods)
-        # Identify where the regime changes
-        merged_asset_data['Regime_Change'] = (merged_asset_data['Regime'] != merged_asset_data['Regime'].shift()).cumsum()
+    # Merge asset data with regime assignments
+    def merge_asset_with_regimes(asset_ts_df, sp_inflation_filtered):
+        """
+        Merge asset time series data with regime assignments based on DateTime.
+        Assumes both DataFrames have a 'DateTime' column.
+        Adds 'Regime' to asset_ts_df by merging on 'DateTime'.
+        Also adds a 'Regime_Change' column to mark regime transitions.
+        """
+        # Merge asset data with regime info on DateTime
+        merged = pd.merge(asset_ts_df, sp_inflation_filtered[['DateTime', 'Regime']], on='DateTime', how='left')
+        # Fill missing regimes as 'Unknown'
+        merged['Regime'] = merged['Regime'].fillna('Unknown')
+        # Add a column to mark regime changes (for background shading)
+        merged = merged.sort_values('DateTime').reset_index(drop=True)
+        merged['Regime_Change'] = (merged['Regime'] != merged['Regime'].shift(1)).cumsum()
+        return merged
+
+    with st.spinner('Merging asset data with regimes...'):
+        merged_asset_data = merge_asset_with_regimes(asset_ts_filtered, sp_inflation_filtered)
+        print(f"DEBUG: Tab 2 - Asset data merged. Shape: {merged_asset_data.shape}") # Added debug print
     
-        # Group by 'Regime' and 'Regime_Change' to get continuous periods
-        grouped = merged_asset_data.groupby(['Regime', 'Regime_Change'])
+    # Initialize the plot
+    fig2 = go.Figure()
     
-        # Collect regime periods
-        regime_periods = []
-        for (regime, _), group in grouped:
-            if regime == 'Unknown':
-                continue
-            color = regime_colors.get(regime, 'grey')
-            start_date_regime = group['DateTime'].iloc[0]
-            end_date_regime = group['DateTime'].iloc[-1]
-            regime_periods.append({
-                'Regime': regime,
-                'Start Date': start_date_regime,
-                'End Date': end_date_regime
-            })
-    
-        # Sort regime periods by start date
-        regime_periods_df = pd.DataFrame(regime_periods)
-        regime_periods_df = regime_periods_df.sort_values('Start Date').reset_index(drop=True)
-    
-        # Adjust end dates to be one day before the next regime's start date
-        for i in range(len(regime_periods_df)):
-            start_date_regime = regime_periods_df.loc[i, 'Start Date']
-            regime = regime_periods_df.loc[i, 'Regime']
-            color = regime_colors.get(regime, 'grey')
-            if i < len(regime_periods_df) - 1:
-                # Set end date to one day before the next regime's start date
-                end_date_regime = regime_periods_df.loc[i+1, 'Start Date'] - pd.Timedelta(days=1)
-            else:
-                # For the last regime, set end date to the maximum date
-                end_date_regime = merged_asset_data['DateTime'].max()
-            # Ensure end_date_regime is not before start_date_regime
-            if end_date_regime < start_date_regime:
-                end_date_regime = start_date_regime
-            # Add vrect for this regime
-            fig2.add_vrect(
-                x0=start_date_regime,
-                x1=end_date_regime,
-                fillcolor=color,
-                opacity=0.3,
-                layer="below",
-                line_width=0
-            )
-        
-        # Add asset traces
-        for asset in selected_assets:
-            # Use adjusted prices if the checkbox is checked
-            price_column = f'{asset}_Adjusted' if adjust_for_inflation else asset
-            asset_data = merged_asset_data[['DateTime', price_column, 'Regime']].copy()
-            asset_data = asset_data.dropna(subset=[price_column]).copy()
-            asset_data['Regime'] = asset_data['Regime'].fillna('Unknown')
-        
-            if asset_data.empty:
-                st.warning(f"No data available for asset {asset} in the selected date range.")
-                continue
-        
-            # Store actual prices
-            asset_data['Actual Price'] = asset_data[price_column]
-        
-            # Normalize prices so that the first valid point is 100
-            first_valid_value = asset_data[price_column].iloc[0]
-            asset_data['Normalized Price'] = (asset_data[price_column] / first_valid_value) * 100
-        
-            # Prepare customdata with actual prices and regimes
-            asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
-            customdata = np.stack((
-                asset_data['Actual Price'],
-                asset_data['Regime Label']
-            ), axis=-1)
-        
-            # Update hovertemplate to indicate whether prices are adjusted
-            price_label = 'Adjusted Price' if adjust_for_inflation else 'Actual Price'
-        
-            # Corrected hovertemplate without f-strings for format specifiers
-            hovertemplate=(
-                asset + "<br>"
-                "Date: %{x|%Y-%m-%d}<br>"
-                "Regime: %{customdata[1]}<br>"
-                "Normalized Price: %{y:.2f}<br>"
-                + price_label + ": %{customdata[0]:.2f}<extra></extra>"
-            )
-        
-            fig2.add_trace(go.Scatter(
-                x=asset_data['DateTime'],
-                y=asset_data['Normalized Price'],
-                mode='lines',
-                name=asset + (' (Adjusted)' if adjust_for_inflation else ''),
-                customdata=customdata,
-                connectgaps=False,  # Do not connect gaps
-                hovertemplate=hovertemplate
-            ))
-        
-        # Update layout
-        fig2.update_layout(
-            title='Asset Performance Over Time (Normalized to 100 at First Available Date)' + (' (Adjusted for Inflation)' if adjust_for_inflation else ''),
-            xaxis=dict(title='Date', range=[start_date, end_date]),
-            yaxis=dict(
-                title='Normalized Adjusted Price' if adjust_for_inflation else 'Normalized Price',
-                type='log' if log_scale_normalized else 'linear'
-            ),
-            hovermode='x unified',
-            width=1200,
-            height=700,
-            margin=dict(l=50, r=50, t=100, b=100),
-            hoverlabel=dict(
-                bgcolor="white",
-                font_size=12,
-                font_family="Arial"
-            )
-        )
-        
-        # Display the plot
-        st.plotly_chart(fig2, use_container_width=False)
-        print("DEBUG: Tab 2 Plotting complete.") # Added debug print
-        
-        # Export plot as image
-        buffer = io.BytesIO()
-        fig2.write_image(buffer, format='png')
-        st.download_button(
-            label="Download Plot as PNG",
-            data=buffer,
-            file_name='asset_performance_plot.png',
-            mime='image/png'
-        )
-        
-        # Provide a download button for the asset data
-        # Merge all selected asset data for download
-        if adjust_for_inflation:
-            adjusted_columns = [f'{asset}_Adjusted' for asset in selected_assets]
-            all_asset_data = merged_asset_data[['DateTime'] + selected_assets + adjusted_columns + ['Regime']].copy()
+    # Add shaded regions for regimes (updated to handle continuous periods)
+    # Identify where the regime changes
+    merged_asset_data['Regime_Change'] = (merged_asset_data['Regime'] != merged_asset_data['Regime'].shift()).cumsum()
+    grouped = merged_asset_data.groupby(['Regime', 'Regime_Change'])
+    regime_periods = []
+    for (regime, _), group in grouped:
+        if regime == 'Unknown':
+            continue
+        color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
+        start_date_regime = group['DateTime'].iloc[0]
+        end_date_regime = group['DateTime'].iloc[-1]
+        regime_periods.append({
+            'Regime': regime,
+            'Start Date': start_date_regime,
+            'End Date': end_date_regime
+        })
+    regime_periods_df = pd.DataFrame(regime_periods)
+    regime_periods_df = regime_periods_df.sort_values('Start Date').reset_index(drop=True)
+    for i in range(len(regime_periods_df)):
+        start_date_regime = regime_periods_df.loc[i, 'Start Date']
+        regime = regime_periods_df.loc[i, 'Regime']
+        color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
+        if i < len(regime_periods_df) - 1:
+            end_date_regime = regime_periods_df.loc[i+1, 'Start Date'] - pd.Timedelta(days=1)
         else:
-            all_asset_data = merged_asset_data[['DateTime'] + selected_assets + ['Regime']].copy()
-        csv = all_asset_data.to_csv(index=False)
+            end_date_regime = merged_asset_data['DateTime'].max()
+        fig2.add_vrect(
+            x0=start_date_regime,
+            x1=end_date_regime,
+            fillcolor=color,
+            opacity=1.0,
+            layer="below",
+            line_width=0
+        )
+    # Plot each asset
+    for asset in assets_to_display:
+        # Use nominal prices
+        asset_data = merged_asset_data[['DateTime', asset, 'Regime']].copy()
+        asset_data = asset_data[asset_data['Regime'] != 'Unknown'].copy()
+        asset_data = asset_data.dropna(subset=[asset, 'Regime']).copy()
+        asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
+        if asset_data.empty:
+            st.warning(f"No data available for asset {asset} in the selected date range.")
+            continue
+        asset_data['Actual Price'] = asset_data[asset]
+        asset_data['Normalized Price'] = asset_data['Actual Price'] / asset_data['Actual Price'].iloc[0] * 100
+        asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
+        customdata = np.stack((
+            asset_data['Actual Price'],
+            asset_data['Regime Label']
+        ), axis=-1)
+        price_label = 'Actual Price'
+        hovertemplate=(
+            asset + "<br>"
+            "Regime: %{customdata[1]}<br>"
+            "Normalized Price: %{y:.2f}<br>"
+            + price_label + ": %{customdata[0]:.2f}<extra></extra>"
+        )
+        fig2.add_trace(go.Scatter(
+            x=asset_data['DateTime'],
+            y=asset_data['Normalized Price'],
+            mode='lines',
+            name=asset,
+            line=dict(color=asset_colors.get(asset, 'gray'), width=2),
+            customdata=customdata,
+            connectgaps=False,
+            hovertemplate=hovertemplate
+        ))
+    # Update layout
+    fig2.update_layout(
+        title='Asset Performance Over Time (Normalized to 100 at First Available Date)',
+        xaxis=dict(title='Date', range=[start_date, end_date]),
+        yaxis=dict(
+            title='Normalized Price',
+            type='linear'
+        ),
+        hovermode='x unified',
+        width=1200,
+        height=700,
+        margin=dict(l=50, r=50, t=100, b=100),
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Arial"
+        )
+    )
+    st.plotly_chart(fig2, use_container_width=False)
+    # Download buttons for plot and data
+    buffer = io.BytesIO()
+    fig2.write_image(buffer, format='png')
+    st.download_button(
+        label="Download Plot as PNG",
+        data=buffer,
+        file_name='asset_performance_plot.png',
+        mime='image/png'
+    )
+    all_asset_data = merged_asset_data[['DateTime'] + assets_to_display + ['Regime']].copy()
+    csv = all_asset_data.to_csv(index=False)
+    st.download_button(
+        label="Download Asset Data as CSV",
+        data=csv,
+        file_name='asset_data.csv',
+        mime='text/csv',
+    )
+
+    # --- Performance Metrics per Regime (from former Tab 3) ---
+    st.subheader("Performance Metrics per Regime")
+    print("DEBUG: Rendering Performance Metrics Section (from former Tab 3).") # Added debug print
+    with st.spinner('Merging asset data with regimes...'):
+        merged_asset_data = merge_asset_with_regimes(asset_ts_filtered, sp_inflation_filtered)
+        print(f"DEBUG: Tab 2 - Asset data merged (for metrics). Shape: {merged_asset_data.shape}") # Added debug print
+    performance_results = []
+    for asset in assets_to_display:
+        asset_data = merged_asset_data[['DateTime', asset, 'Regime']].copy()
+        asset_data = asset_data[asset_data['Regime'] != 'Unknown'].copy()
+        asset_data = asset_data.dropna(subset=[asset, 'Regime']).copy()
+        asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
+        asset_data['Return'] = asset_data[asset].pct_change()
+        asset_data = asset_data.dropna(subset=['Return']).copy()
+        for regime in asset_data['Regime'].unique():
+            regime_data = asset_data[asset_data['Regime'] == regime].copy()
+            if len(regime_data) < 2:
+                performance_results.append({
+                    'Asset': asset,
+                    'Regime': regime_labels_dict.get(regime, 'Unknown'),
+                    'Average Return': np.nan,
+                    'Volatility': np.nan,
+                    'Sharpe Ratio': np.nan,
+                    'Max Drawdown': np.nan
+                })
+                continue
+            avg_return = regime_data['Return'].mean() * 252
+            volatility = regime_data['Return'].std() * np.sqrt(252)
+            sharpe_ratio = avg_return / volatility if volatility != 0 else np.nan
+            cumulative = (1 + regime_data['Return']).cumprod()
+            cumulative_max = cumulative.cummax()
+            drawdown = cumulative / cumulative_max - 1
+            max_drawdown = drawdown.min()
+            performance_results.append({
+                'Asset': asset,
+                'Regime': regime_labels_dict.get(regime, 'Unknown'),
+                'Average Return': avg_return,
+                'Volatility': volatility,
+                'Sharpe Ratio': sharpe_ratio,
+                'Max Drawdown': max_drawdown
+            })
+    perf_data_filtered = pd.DataFrame(performance_results)
+    if perf_data_filtered.empty:
+        st.warning("No performance data available for the selected options.")
+    else:
+        # Bar Charts for each metric (with regime background coloring)
+        for metric in metrics_to_display:
+            st.markdown(f"#### {metric} by Asset and Regime")
+            fig3 = go.Figure()
+            # Add regime background shading using shapes
+            unique_regimes = perf_data_filtered['Regime'].unique()
+            regime_x = list(unique_regimes)
+            for i, regime in enumerate(regime_x):
+                color = regime_bg_colors.get(
+                    [k for k, v in regime_labels_dict.items() if v == regime][0],
+                    'rgba(200,200,200,0.10)'
+                )
+                fig3.add_vrect(
+                    x0=i - 0.5,
+                    x1=i + 0.5,
+                    fillcolor=color,
+                    opacity=0.7,
+                    layer="below",
+                    line_width=0
+                )
+            for asset in assets_to_display:
+                asset_name = asset
+                asset_perf = perf_data_filtered[perf_data_filtered['Asset'] == asset_name]
+                fig3.add_trace(go.Bar(
+                    x=asset_perf['Regime'],
+                    y=asset_perf[metric],
+                    name=asset_name,
+                    marker_color=asset_colors.get(asset_name, 'gray')
+                ))
+            fig3.update_layout(
+                barmode='group',
+                xaxis_title='Regime',
+                yaxis_title=metric,
+                title=f'{metric} by Asset and Regime',
+                width=800,
+                height=500
+            )
+            st.plotly_chart(fig3, use_container_width=False)
+        # Show the table at the very bottom
+        st.dataframe(perf_data_filtered)
+        csv = perf_data_filtered.to_csv(index=False)
         st.download_button(
-            label="Download Asset Data as CSV",
+            label="Download Performance Metrics Data as CSV",
             data=csv,
-            file_name='asset_data.csv',
+            file_name='performance_metrics.csv',
             mime='text/csv',
         )
-
-# Tab 3: Performance Metrics per Regime
-with tabs[2]:
-    st.subheader("Performance Metrics per Regime")
-    print("DEBUG: Rendering Tab 3: Performance Metrics.") # Added debug print
-    
-    # Sidebar for Performance Metrics Settings
-    st.sidebar.header("Performance Metrics Settings")
-    # Sidebar Performance Metrics Selection
-    metric_options = ['Average Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown']
-    selected_metrics = st.sidebar.multiselect("Select Performance Metrics to Display:", metric_options, default=metric_options)
-    
-    # Check if assets and metrics are selected
-    if not selected_assets or not selected_metrics:
-        st.warning("Please select at least one asset and one performance metric to display.")
-    else:
-        # Merge asset data with regimes (include CPI for inflation adjustment)
-        @st.cache_data
-        def merge_asset_with_regimes(asset_ts_df, sp_inflation_df):
-            merged = pd.merge(
-                asset_ts_df,
-                sp_inflation_df[['DateTime', 'Regime', 'CPI']],
-                on='DateTime',
-                how='left'
-            )
-            return merged
-        
-        with st.spinner('Merging asset data with regimes...'):
-            merged_asset_data = merge_asset_with_regimes(asset_ts_filtered, sp_inflation_filtered)
-            print(f"DEBUG: Tab 3 - Asset data merged. Shape: {merged_asset_data.shape}") # Added debug print
-        
-        # Adjust asset prices for inflation if checkbox is checked
-        if adjust_for_inflation:
-            # Adjust prices
-            price_columns = selected_assets  # List of asset columns to adjust
-            merged_asset_data = adjust_prices_for_inflation(merged_asset_data, price_columns, cpi_column='CPI')
-        
-        # Ensure 'DateTime' is datetime type in merged_asset_data
-        merged_asset_data['DateTime'] = pd.to_datetime(merged_asset_data['DateTime'])
-        
-        # Initialize list to store performance metrics
-        performance_results = []
-        
-        for asset in selected_assets:
-            # Use adjusted prices if the checkbox is checked
-            price_column = f'{asset}_Adjusted' if adjust_for_inflation else asset
-            # Get the asset data with regimes
-            asset_data = merged_asset_data[['DateTime', price_column, 'Regime']].copy()
-            asset_data = asset_data.dropna(subset=[price_column, 'Regime']).copy()
-            asset_data['Regime'] = asset_data['Regime'].fillna('Unknown')
-            asset_data['Regime Label'] = asset_data['Regime'].map(regime_labels_dict)
-            
-            # Compute daily returns
-            asset_data['Return'] = asset_data[price_column].pct_change()
-            asset_data = asset_data.dropna(subset=['Return']).copy()
-            
-            for regime in asset_data['Regime'].unique():
-                regime_data = asset_data[asset_data['Regime'] == regime].copy()
-                
-                if len(regime_data) < 2:
-                    # Not enough data to compute metrics
-                    performance_results.append({
-                        'Asset': asset + (' (Adjusted)' if adjust_for_inflation else ''),
-                        'Regime': regime_labels_dict.get(regime, 'Unknown'),
-                        'Average Return': np.nan,
-                        'Volatility': np.nan,
-                        'Sharpe Ratio': np.nan,
-                        'Max Drawdown': np.nan
-                    })
-                    continue
-                
-                # Compute performance metrics
-                avg_return = regime_data['Return'].mean() * 252  # Annualized
-                volatility = regime_data['Return'].std() * np.sqrt(252)  # Annualized
-                sharpe_ratio = avg_return / volatility if volatility != 0 else np.nan
-                
-                # Compute Max Drawdown
-                cumulative = (1 + regime_data['Return']).cumprod()
-                cumulative_max = cumulative.cummax()
-                drawdown = cumulative / cumulative_max - 1
-                max_drawdown = drawdown.min()
-                
-                # Append to results
-                performance_results.append({
-                    'Asset': asset + (' (Adjusted)' if adjust_for_inflation else ''),
-                    'Regime': regime_labels_dict.get(regime, 'Unknown'),
-                    'Average Return': avg_return,
-                    'Volatility': volatility,
-                    'Sharpe Ratio': sharpe_ratio,
-                    'Max Drawdown': max_drawdown
-                })
-        
-        # Convert to DataFrame
-        perf_data_filtered = pd.DataFrame(performance_results)
-        
-        # Check if data is available
-        if perf_data_filtered.empty:
-            st.warning("No performance data available for the selected options.")
-        else:
-            # Display the table
-            st.dataframe(perf_data_filtered)
-        
-            # Bar Charts for each metric
-            for metric in selected_metrics:
-                st.markdown(f"#### {metric} by Asset and Regime")
-                fig3 = go.Figure()
-                
-                for asset in selected_assets:
-                    asset_name = asset + (' (Adjusted)' if adjust_for_inflation else '')
-                    asset_perf = perf_data_filtered[perf_data_filtered['Asset'] == asset_name]
-                    fig3.add_trace(go.Bar(
-                        x=asset_perf['Regime'],
-                        y=asset_perf[metric],
-                        name=asset_name
-                    ))
-                
-                # Update layout
-                fig3.update_layout(
-                    barmode='group',
-                    xaxis=dict(title='Regime'),
-                    yaxis=dict(title=metric),
-                    title=f'{metric} by Asset and Regime',
-                    width=800,
-                    height=500
-                )
-                
-                # Display the plot
-                st.plotly_chart(fig3, use_container_width=False)
-            
-            # Provide a download button for the performance data
-            csv = perf_data_filtered.to_csv(index=False)
-            st.download_button(
-                label="Download Performance Metrics Data as CSV",
-                data=csv,
-                file_name='performance_metrics.csv',
-                mime='text/csv',
-            )
-
 print("DEBUG: End of script execution.") # Added debug print
