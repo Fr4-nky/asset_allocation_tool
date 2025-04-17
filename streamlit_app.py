@@ -92,11 +92,28 @@ def load_data():
     sp500_url = "https://www.longtermtrends.net/data-sp500-since-1871/"
     inflation_url = "https://www.longtermtrends.net/data-inflation/"
     cpi_url = "https://www.longtermtrends.net/data-cpi/"
+    bonds_url = "https://www.longtermtrends.net/data-total-return-bond-index/"
+    gold_url = "https://www.longtermtrends.net/data-gold-since-1792/"
 
     # Fetch each dataset (returns df with 'Date' as index or None)
     df_sp500 = fetch_and_decode(sp500_url, 'S&P 500')
     df_inflation = fetch_and_decode(inflation_url, 'Inflation Rate')
     df_cpi = fetch_and_decode(cpi_url, 'CPI')
+    df_bonds = fetch_and_decode(bonds_url, 'Bonds')
+    df_gold = fetch_and_decode(gold_url, 'Gold')
+
+    # Merge asset classes on Date index
+    asset_dfs = [df_sp500, df_bonds, df_gold]
+    asset_ts_df = None
+    try:
+        asset_ts_df = pd.concat(asset_dfs, axis=1, join='outer')
+        asset_ts_df = asset_ts_df.reset_index().rename(columns={'Date': 'DateTime'})
+        asset_ts_df['DateTime'] = pd.to_datetime(asset_ts_df['DateTime'], errors='coerce')
+        asset_ts_df = asset_ts_df.dropna(subset=['DateTime']).copy()
+        print(f"SUCCESS: Asset class data loaded from APIs. Shape: {asset_ts_df.shape}")
+    except Exception as e:
+        print(f"ERROR: Failed to load or merge asset data from APIs: {e}")
+        asset_ts_df = pd.DataFrame()
 
     # --- Apply preprocessing steps from preprocessing3.ipynb ---
     print("DEBUG: Applying resampling and merging logic (like preprocessing3.ipynb)...")
@@ -162,21 +179,6 @@ def load_data():
         print("DEBUG: Reset index, 'DateTime' column created.")
 
 
-    # --- Load Asset time series data from CSV ---
-    path = './processed_data/'
-    asset_ts_df = pd.DataFrame(columns=['DateTime']) # Default empty
-    try:
-        asset_ts_df_raw = pd.read_csv(path + 'asset_classes_preprocessed.csv', parse_dates=['DateTime'])
-        # Ensure DateTime is parsed correctly
-        asset_ts_df_raw['DateTime'] = pd.to_datetime(asset_ts_df_raw['DateTime'], errors='coerce')
-        asset_ts_df = asset_ts_df_raw.dropna(subset=['DateTime']).copy()
-        print(f"SUCCESS: Asset class data loaded successfully from CSV. Shape: {asset_ts_df.shape}")
-    except FileNotFoundError:
-        print(f"ERROR: Asset data file not found at {path + 'asset_classes_preprocessed.csv'}")
-    except Exception as e:
-         print(f"ERROR: Failed to load or parse asset data CSV: {e}")
-
-
     # --- Apply >= 1990 Filter AFTER resampling/merging ---
     filter_date = pd.Timestamp('1990-01-01')
     print(f"DEBUG: Applying final filter for dates >= {filter_date}...")
@@ -200,6 +202,8 @@ def load_data():
             print("ERROR: 'DateTime' column missing before final 1990 filter for Asset data.")
             asset_ts_df = pd.DataFrame() # Make empty
 
+    print("LOG: Loaded sp_inflation_data: shape={}, min_date={}, max_date={}".format(sp_inflation_df.shape, sp_inflation_df['DateTime'].min(), sp_inflation_df['DateTime'].max()))
+    print("LOG: Loaded asset_ts_data: shape={}, min_date={}, max_date={}".format(asset_ts_df.shape, asset_ts_df['DateTime'].min(), asset_ts_df['DateTime'].max()))
     print("DEBUG: load_data function finished.")
     # Return the processed S&P/Inflation/CPI df and the filtered asset df
     return sp_inflation_df.copy(), asset_ts_df.copy()
@@ -389,6 +393,9 @@ def get_filtered_data(sp_inflation_df, asset_ts_df, start_date, end_date):
         (asset_ts_df['DateTime'] >= start_date) & (asset_ts_df['DateTime'] <= end_date)
     ].copy()
     
+    print("LOG: After filtering, sp_inflation_filtered: shape={}, min_date={}, max_date={}".format(sp_inflation_filtered.shape, sp_inflation_filtered['DateTime'].min(), sp_inflation_filtered['DateTime'].max()))
+    print("LOG: After filtering, asset_ts_filtered: shape={}, min_date={}, max_date={}".format(asset_ts_filtered.shape, asset_ts_filtered['DateTime'].min(), asset_ts_filtered['DateTime'].max()))
+    
     return sp_inflation_filtered, asset_ts_filtered
 
 # Filter data based on date range
@@ -399,7 +406,6 @@ with st.spinner('Filtering data...'):
         start_date,
         end_date
     )
-    print(f"DEBUG: Data filtered. sp_inflation_filtered shape: {sp_inflation_filtered.shape}, asset_ts_filtered shape: {asset_ts_filtered.shape}") # Added debug print
 
 # Compute Moving Averages
 with st.spinner('Computing Moving Averages...'):
@@ -765,6 +771,7 @@ with tabs[0]:
     )
     print("DEBUG: Tab 1 - Layout updated.") # Added debug print
 
+    print("LOG: Chart data: shape={}, min_date={}, max_date={}".format(sp_inflation_filtered.shape, sp_inflation_filtered['DateTime'].min(), sp_inflation_filtered['DateTime'].max()))
     # Display the plot
     print("DEBUG: Tab 1 - Calling st.plotly_chart(fig)...") # Added debug print
     st.plotly_chart(fig, use_container_width=False)
@@ -1038,7 +1045,11 @@ st.sidebar.header("Asset Settings")
 # Sidebar Asset Selection
 asset_options = list(asset_ts_data.columns)
 asset_options.remove('DateTime')
-selected_assets = st.sidebar.multiselect("Select Assets to Display:", asset_options, default=['Gold', 'Bonds'])
+# Ensure S&P 500 is in the default selection, along with Bonds and Gold
+for asset in ['S&P 500', 'Bonds', 'Gold']:
+    if asset not in asset_options:
+        asset_options.append(asset)
+selected_assets = st.sidebar.multiselect("Select Assets to Display:", asset_options, default=['S&P 500', 'Gold', 'Bonds'])
 # Checkbox for inflation adjustment
 adjust_for_inflation = st.sidebar.checkbox("Adjust Prices for Inflation (CPI)", value=False)
 
