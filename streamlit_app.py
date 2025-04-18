@@ -1107,7 +1107,7 @@ with tabs[1]:
         asset_data['Regime_Start_Group'] = (asset_data['Regime'] != asset_data['Regime'].shift()).cumsum()
 
         # Iterate through each identified regime period group
-        for group_id, group in asset_data.groupby('Regime_Start_Group'):
+        for group_id, group in asset_data.groupby('Regime_Start_Group', observed=False):
             if len(group) < 1: # Should not happen with cumsum logic, but safety check
                  continue
 
@@ -1297,22 +1297,43 @@ with tabs[1]:
             # --- AGGREGATED AVERAGE RETURN TABLE (EXTENDED) ---
             required_cols = {'Period Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown'}
             if required_cols.issubset(set(trade_log_df.columns)):
-                avg_metrics_table = (
-                    trade_log_df.groupby(['Regime', 'Asset'], as_index=False)
-                    .agg({
-                        'Period Return': 'mean',
-                        'Volatility': 'mean',
-                        'Sharpe Ratio': 'mean',
-                        'Max Drawdown': 'mean',
+                avg_metrics = []
+                # Add observed=False to groupby to silence FutureWarning and maintain current behavior
+                for (regime, asset), group in trade_log_df.groupby(['Regime', 'Asset'], observed=False):
+                    # Gather all monthly returns for this (regime, asset) group
+                    # Find all periods for this group
+                    monthly_returns = []
+                    for idx, row in group.iterrows():
+                        start_date = pd.to_datetime(row['Start Date'])
+                        end_date = pd.to_datetime(row['End Date'])
+                        # Get price series for this asset and date range
+                        asset_prices = merged_asset_data_metrics[['DateTime', asset]].dropna()
+                        mask = (asset_prices['DateTime'] >= start_date) & (asset_prices['DateTime'] <= end_date)
+                        price_series = asset_prices.loc[mask, asset]
+                        returns = price_series.pct_change().dropna()
+                        monthly_returns.append(returns)
+                    if monthly_returns:
+                        all_returns = pd.concat(monthly_returns)
+                        mean_monthly = all_returns.mean()
+                        std_monthly = all_returns.std()
+                        ann_return = mean_monthly * 12
+                        ann_vol = std_monthly * (12 ** 0.5)
+                        sharpe = ann_return / ann_vol if ann_vol > 0 else float('nan')
+                    else:
+                        ann_return = float('nan')
+                        ann_vol = float('nan')
+                        sharpe = float('nan')
+                    # For drawdown, average period max drawdown (as originally calculated)
+                    avg_drawdown = group['Max Drawdown'].mean()
+                    avg_metrics.append({
+                        'Regime': regime,
+                        'Asset': asset,
+                        'Annualized Return (Aggregated)': ann_return,
+                        'Annualized Volatility (Aggregated)': ann_vol,
+                        'Sharpe Ratio (Aggregated)': sharpe,
+                        'Average Max Drawdown (Period Avg)': avg_drawdown,
                     })
-                    .rename(columns={
-                        'Period Return': 'Average Period Return',
-                        'Volatility': 'Average Volatility',
-                        'Sharpe Ratio': 'Average Sharpe Ratio',
-                        'Max Drawdown': 'Average Max Drawdown',
-                    })
-                )
-                st.markdown("<h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Average Performance Metrics by Regime and Asset</h2>", unsafe_allow_html=True)
+                avg_metrics_table = pd.DataFrame(avg_metrics)
                 regime_order = [
                     'Rising Growth & Falling Inflation',
                     'Rising Growth & Rising Inflation',
@@ -1324,23 +1345,26 @@ with tabs[1]:
                 st.dataframe(
                     avg_metrics_table.style
                         .format({
-                            'Average Period Return': '{:.2%}',
-                            'Average Volatility': '{:.2%}',
-                            'Average Sharpe Ratio': '{:.2f}',
-                            'Average Max Drawdown': '{:.2%}'
+                            'Annualized Return (Aggregated)': '{:.2%}',
+                            'Annualized Volatility (Aggregated)': '{:.2%}',
+                            'Sharpe Ratio (Aggregated)': '{:.2f}',
+                            'Average Max Drawdown (Period Avg)': '{:.2%}'
                         })
                         .apply(highlight_regime_avg, axis=1),
                     use_container_width=True
                 )
-                # --- FOOTNOTES for Average Table ---
+                # --- FOOTNOTES for Average Table --- (Revised for Clarity)
                 st.markdown("""
-**Aggregation Notes:**
-- All average metrics are computed as the mean of the respective period metrics for each asset and regime, based on monthly data.
-- Periods with missing (NaN) values are ignored in the averaging.
+**Aggregation & Calculation Notes:**
+- **Annualized Return (Aggregated):** Calculated from the mean of *all* monthly returns across all periods within the regime/asset group, then annualized (multiplied by 12).
+- **Annualized Volatility (Aggregated):** Calculated from the standard deviation of *all* monthly returns across all periods within the regime/asset group, then annualized (multiplied by √12).
+- **Sharpe Ratio (Aggregated):** Calculated as `Annualized Return (Aggregated) / Annualized Volatility (Aggregated)`, assuming a 0% risk-free rate. Uses the aggregated metrics above.
+- **Average Max Drawdown (Period Avg):** Calculated by averaging the 'Max Drawdown' values computed for *each individual period* within the regime/asset group.
+- **Missing Data:** Periods or months with missing data (NaN) are excluded from calculations.
 """)
                 # --- BAR CHARTS for Average Metrics by Regime and Asset ---
                 import plotly.graph_objects as go
-                metrics_to_display = ['Average Period Return', 'Average Volatility', 'Average Sharpe Ratio', 'Average Max Drawdown']
+                metrics_to_display = ['Annualized Return (Aggregated)', 'Annualized Volatility (Aggregated)', 'Sharpe Ratio (Aggregated)', 'Average Max Drawdown (Period Avg)']
                 st.markdown("<h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Bar Charts of Performance Metrics</h2>", unsafe_allow_html=True)
                 for metric in metrics_to_display:
                     fig3 = go.Figure()
@@ -1383,7 +1407,7 @@ with tabs[1]:
                         title_font=dict(size=20)
                     )
                     # Set y-axis formatting for percentage metrics
-                    if metric in ['Average Period Return', 'Average Max Drawdown']:
+                    if metric in ['Annualized Return (Aggregated)', 'Annualized Volatility (Aggregated)', 'Average Max Drawdown (Period Avg)']:
                         fig3.update_yaxes(tickformat=".0%")
                     st.plotly_chart(fig3, use_container_width=False)
             else:
