@@ -30,6 +30,7 @@ st.markdown(f"""
     <meta property='og:title' content='{meta_title}'>
     <meta property='og:description' content='{meta_description}'>
     <meta property='og:type' content='website'>
+    <meta property='og:image' content='https://www.longtermtrends.net/static/my_app/images/macro-regimes.png'>
 """, unsafe_allow_html=True)
 
 # Title and Description
