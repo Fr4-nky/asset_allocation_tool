@@ -20,6 +20,18 @@ st.set_page_config(
     page_icon="https://www.longtermtrends.net/static/my_app/images/favicon.ico"
 )
 
+# --- Add meta tags for SEO and social sharing ---
+meta_title = "Macroeconomic Regimes and Asset Performance Analysis | Longtermtrends"
+meta_description = ("This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate data, and analyzes asset performance across these regimes.")
+# Inject meta tags into the Streamlit app (HTML head)
+st.markdown(f"""
+    <meta name='title' content='{meta_title}'>
+    <meta name='description' content='{meta_description}'>
+    <meta property='og:title' content='{meta_title}'>
+    <meta property='og:description' content='{meta_description}'>
+    <meta property='og:type' content='website'>
+""", unsafe_allow_html=True)
+
 # Title and Description
 st.title("Macroeconomic Regimes and Asset Performance Analysis")
 st.write("""
