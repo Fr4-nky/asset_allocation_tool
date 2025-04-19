@@ -923,36 +923,36 @@ with tabs[0]:
 <ul>
   <li>Raw Data URLs Used in This App:
     <ul>
-      <li>S&amp;P 500 Data (since 1871): <a href="https://www.longtermtrends.net/data-sp500-since-1871/" target="_blank">longtermtrends.net/data-sp500-since-1871/</a></li>
+      <li>S&amp;P 500 Data: <a href="https://www.longtermtrends.net/data-sp500-since-1871/" target="_blank">longtermtrends.net/data-sp500-since-1871/</a></li>
       <li>Inflation Rate Data: <a href="https://www.longtermtrends.net/data-inflation-forecast/" target="_blank">longtermtrends.net/data-inflation-forecast/</a></li>
       <li>Total Return Bond Index Data: <a href="https://www.longtermtrends.net/data-total-return-bond-index/" target="_blank">longtermtrends.net/data-total-return-bond-index/</a></li>
-      <li>Gold Price Data (since 1792): <a href="https://www.longtermtrends.net/data-gold-since-1792/" target="_blank">longtermtrends.net/data-gold-since-1792/</a></li>
+      <li>Gold Price Data: <a href="https://www.longtermtrends.net/data-gold-since-1792/" target="_blank">longtermtrends.net/data-gold-since-1792/</a></li>
     </ul>
   </li>
   <li>S&amp;P 500:
     <ul>
-      <li>Recent Prices: <a href="https://fred.stlouisfed.org/series/SP500" target="_blank">fred.stlouisfed.org/series/SP500</a></li>
+      <li>Recent Prices: <a href="https://fred.stlouisfed.org/series/SP500" target="_blank">FRED S&amp;P 500</a></li>
       <li>From 1928 until 2023: <a href="https://finance.yahoo.com/quote/%5ESPX/history/" target="_blank">Yahoo Finance S&amp;P 500</a></li>
       <li>Until 1927: <a href="https://www.multpl.com/s-p-500-historical-prices/table/by-month" target="_blank">Multpl S&amp;P 500</a></li>
     </ul>
   </li>
   <li>Total Return Bond Index:
     <ul>
-      <li>Until 1973: <a href="https://fred.stlouisfed.org/series/BAMLCC0A0CMTRIV" target="_blank">FRED BAMLCC0A0CMTRIV</a></li>
-      <li>Since 1973: <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3805927" target="_blank">McQuarrie et al. (SSRN)</a></li>
+      <li>Since 1973: <a href="https://fred.stlouisfed.org/series/BAMLCC0A0CMTRIV" target="_blank">FRED BAMLCC0A0CMTRIV</a></li>
+      <li>Until 1973: <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3805927" target="_blank">McQuarrie: Where Siegel Went Awry: Outdated Sources &amp; Incomplete Data</a></li>
     </ul>
   </li>
   <li>Gold:
     <ul>
-      <li>Since 2000: <a href="https://finance.yahoo.com/quote/GC=F/" target="_blank">COMEX Gold (Yahoo Finance)</a></li>
-      <li>Until 2000: <a href="https://onlygold.com/gold-prices/historical-gold-prices/" target="_blank">OnlyGold Historical Prices</a></li>
+      <li>Since 2000: <a href="https://finance.yahoo.com/quote/GC=F/" target="_blank">Yahoo Finance: COMEX Gold</a></li>
+      <li>Until 2000: <a href="https://onlygold.com/gold-prices/historical-gold-prices/" target="_blank">OnlyGold: Historical Prices</a></li>
     </ul>
   </li>
   <li>Inflation:
     <ul>
-      <li>Nowcasting (latest): <a href="https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting" target="_blank">Cleveland Fed Inflation Nowcasting</a></li>
-      <li>CPI (1871–1913): <a href="http://www.econ.yale.edu/~shiller/data.htm" target="_blank">Shiller Online Data</a></li>
-      <li>CPI (since 1913): <a href="https://fred.stlouisfed.org/series/CPIAUCNS" target="_blank">Federal Reserve Bank of St. Louis</a></li>
+      <li>Latest data point: <a href="https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting" target="_blank">Cleveland Fed: Inflation Nowcasting</a></li>
+      <li>Since 1913: <a href="https://fred.stlouisfed.org/series/CPIAUCNS" target="_blank">FRED: CPI</a></li>
+      <li>Until 1913: <a href="http://www.econ.yale.edu/~shiller/data.htm" target="_blank">Yale University: Online Data Robert Shiller</a></li>
     </ul>
   </li>
 </ul>
