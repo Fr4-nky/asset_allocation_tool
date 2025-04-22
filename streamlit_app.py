@@ -3,15 +3,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-import io  # For exporting plot as image
-import requests # Added for API calls
-import json     # Added for API calls
-import base64   # Added for API calls
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import matplotlib.cm as cm
 import time
+import plotly.graph_objects as go
+import matplotlib.colors as mcolors
+
+from data.fetch import fetch_and_decode, decode_base64_data
+from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
+from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
+from metrics.performance import generate_trade_log, generate_aggregated_metrics
+from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, regime_definitions
 
 # Set page configuration
 st.set_page_config(
@@ -37,83 +37,6 @@ st.title("Macroeconomic Regimes and Asset Performance Analysis")
 st.write("""
 This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate data, and analyzes asset performance across these regimes.
 """)
-
-# --- Helper Functions for API Data Fetching ---
-
-def decode_base64_data(encoded_data):
-    """Decodes a list of [base64_date, base64_value] pairs."""
-    decoded_list = []
-    for date_b64, value_b64 in encoded_data:
-        try:
-            date_str = base64.b64decode(date_b64).decode('utf-8')
-            value_str = base64.b64decode(value_b64).decode('utf-8')
-            # Convert value to float, handle potential errors (e.g., non-numeric values)
-            value_float = float(value_str)
-            decoded_list.append([date_str, value_float])
-        except (base64.binascii.Error, UnicodeDecodeError, ValueError) as e:
-            # Use print for terminal output instead of st.warning
-            print(f"WARNING: Skipping record due to decoding/conversion error: {e} - Date: {date_b64}, Value: {value_b64}")
-            # Optionally append with None or np.nan if you want to keep the row
-            # date_str = base64.b64decode(date_b64).decode('utf-8', errors='ignore')
-            # decoded_list.append([date_str, None])
-    return decoded_list
-
-def fetch_and_decode(url, column_name):
-    """Fetches data from a URL, decodes it, and returns a Pandas DataFrame."""
-    # Use print for terminal output instead of st.info
-    print(f"INFO: Fetching data from {url}...")
-    try:
-        response = requests.get(url, timeout=30) # Added timeout
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
-        encoded_data = response.json()
-        decoded_data = decode_base64_data(encoded_data)
-
-        if not decoded_data: # Handle case where decoding resulted in an empty list
-             # Use print for terminal output instead of st.warning
-             print(f"WARNING: No valid data decoded from {url}")
-             return None
-
-        df = pd.DataFrame(decoded_data, columns=['Date', column_name])
-        df['Date'] = pd.to_datetime(df['Date']) # Convert Date column to datetime objects
-        df = df.set_index('Date') # Set Date as index for easy merging
-        # Use print for terminal output instead of st.success
-        print(f"SUCCESS: Successfully fetched and processed data for {column_name}.")
-        return df
-    except requests.exceptions.Timeout:
-        # Use print for terminal output instead of st.error
-        print(f"ERROR: Request timed out while fetching data from {url}")
-        return None
-    except requests.exceptions.RequestException as e:
-        # Use print for terminal output instead of st.error
-        print(f"ERROR: Error fetching data from {url}: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        # Use print for terminal output instead of st.error
-        print(f"ERROR: Error decoding JSON from {url}. Response text: {response.text[:500]}... Error: {e}") # Log part of the response
-        return None
-    except Exception as e:
-        # Use print for terminal output instead of st.error
-        print(f"ERROR: An unexpected error occurred while processing {url}: {e}")
-        return None
-
-# --- End Helper Functions ---
-
-# Function to merge asset data with regime assignments
-def merge_asset_with_regimes(asset_ts_df, sp_inflation_filtered):
-    """
-    Merge asset time series data with regime assignments based on DateTime.
-    Assumes both DataFrames have a 'DateTime' column.
-    Adds 'Regime' to asset_ts_df by merging on 'DateTime'.
-    Also adds a 'Regime_Change' column to mark regime transitions.
-    """
-    # Merge asset data with regime info on DateTime
-    merged = pd.merge(asset_ts_df, sp_inflation_filtered[['DateTime', 'Regime']], on='DateTime', how='left')
-    # Fill missing regimes as 'Unknown'
-    merged['Regime'] = merged['Regime'].fillna('Unknown')
-    # Add a column to mark regime changes (for background shading)
-    merged = merged.sort_values('DateTime').reset_index(drop=True)
-    merged['Regime_Change'] = (merged['Regime'] != merged['Regime'].shift(1)).cumsum()
-    return merged
 
 # Load Data Function
 @st.cache_data
@@ -301,46 +224,10 @@ ma_length = st.sidebar.number_input(
 sp500_n = ma_length
 inflation_n = ma_length
 
-# Define a color palette for regimes
-color_palette = [
-    'green', 'yellow', 'orange', 'red', 'purple', 'cyan', 'magenta', 'brown', 'pink', 'olive',
-    'blue', 'gray', 'black', 'teal', 'navy', 'maroon'
-]
-
-# Regime color mapping for background shading
-regime_bg_colors = {
-    1: 'rgba(0, 128, 255, 0.13)',   # Rising Growth, Rising Inflation - Light Blue
-    2: 'rgba(0, 255, 0, 0.13)',     # Rising Growth, Falling Inflation - Light Green
-    3: 'rgba(255, 0, 0, 0.13)',     # Falling Growth, Rising Inflation - Light Red
-    4: 'rgba(255, 255, 0, 0.13)'    # Falling Growth, Falling Inflation - Light Yellow
-}
-
-# Regime color mapping for legend (match background, but higher opacity)
-regime_legend_colors = {
-    1: 'rgba(0, 128, 255, 0.7)',   # Light Blue, more visible
-    2: 'rgba(0, 255, 0, 0.7)',    # Light Green
-    3: 'rgba(255, 0, 0, 0.7)',    # Light Red
-    4: 'rgba(255, 255, 0, 0.7)'   # Light Yellow
-}
-
-# Asset and macro color mapping
-asset_colors = {
-    'S&P 500': 'blue',
-    'Gold': 'gold',
-    'Bonds': 'black',
-    'Inflation Rate': 'red',
-    'S&P 500 MA': 'blue',
-    'Inflation Rate MA': 'red',
-}
-
-# Caching dynamic computations
-@st.cache_data
-def compute_moving_average(data, window_size):
-    return data.rolling(window=window_size).mean()
-
-@st.cache_data
-def compute_growth(ma_data):
-    return ma_data.diff()
+# --- Apply >= 1972 Filter BEFORE computing MAs and Growth (to match OLD CODE) ---
+filter_date = pd.Timestamp('1972-01-01')
+sp_inflation_data = sp_inflation_data[sp_inflation_data['DateTime'] >= filter_date].copy()
+print(f"DEBUG: Applied filter for dates >= {filter_date}. Shape: {sp_inflation_data.shape}")
 
 # --- Logging for Moving Average Computation ---
 t0 = time.time()
@@ -365,6 +252,16 @@ with st.spinner('Computing Growth...'):
         sp_inflation_data['Inflation Rate MA']
     )
     print("DEBUG: Growth computed.")
+    # --- DEBUG PRINTS FOR GROWTH COLUMNS ---
+    print("DEBUG: S&P 500 MA Growth min/max:", sp_inflation_data['S&P 500 MA Growth'].min(), sp_inflation_data['S&P 500 MA Growth'].max())
+    print("DEBUG: Inflation Rate MA Growth min/max:", sp_inflation_data['Inflation Rate MA Growth'].min(), sp_inflation_data['Inflation Rate MA Growth'].max())
+    print("DEBUG: S&P 500 MA Growth sample:", sp_inflation_data['S&P 500 MA Growth'].head())
+    print("DEBUG: Inflation Rate MA Growth sample:", sp_inflation_data['Inflation Rate MA Growth'].head())
+    # --- DO NOT DROP ROWS WITH NANs IN MA OR GROWTH COLUMNS BEFORE REGIME ASSIGNMENT OR PLOTTING (MATCH OLD BEHAVIOR) ---
+    # sp_inflation_data = sp_inflation_data.dropna(subset=[
+    #     'S&P 500 MA', 'Inflation Rate MA', 'S&P 500 MA Growth', 'Inflation Rate MA Growth'
+    # ]).copy()
+    # print("DEBUG: After dropna, sp_inflation_data shape:", sp_inflation_data.shape)
 t1 = time.time()
 print(f"DEBUG: Growth computation took {t1-t0:.2f} seconds.")
 
@@ -377,68 +274,6 @@ sp500_max = float(sp500_growth.max())
 inflation_min = float(inflation_growth.min())
 inflation_max = float(inflation_growth.max())
 
-# Elegant regime definitions: Only check for greater/smaller than 0 for both growth rates
-regime_definitions = [
-    {
-        'Regime': 1,
-        'S&P 500 Lower': 0,
-        'S&P 500 Upper': float('inf'),
-        'Inflation Lower': 0,
-        'Inflation Upper': float('inf'),
-        'Label': 'Rising Growth & Rising Inflation'
-    },
-    {
-        'Regime': 2,
-        'S&P 500 Lower': 0,
-        'S&P 500 Upper': float('inf'),
-        'Inflation Lower': float('-inf'),
-        'Inflation Upper': 0,
-        'Label': 'Rising Growth & Falling Inflation'
-    },
-    {
-        'Regime': 3,
-        'S&P 500 Lower': float('-inf'),
-        'S&P 500 Upper': 0,
-        'Inflation Lower': 0,
-        'Inflation Upper': float('inf'),
-        'Label': 'Falling Growth & Rising Inflation'
-    },
-    {
-        'Regime': 4,
-        'S&P 500 Lower': float('-inf'),
-        'S&P 500 Upper': 0,
-        'Inflation Lower': float('-inf'),
-        'Inflation Upper': 0,
-        'Label': 'Falling Growth & Falling Inflation'
-    }
-]
-# Assign colors and labels to regimes
-regime_colors = {1: 'green', 2: 'yellow', 3: 'red', 4: 'blue'}
-regime_labels_dict = {
-    1: 'Rising Growth & Rising Inflation',
-    2: 'Rising Growth & Falling Inflation',
-    3: 'Falling Growth & Rising Inflation',
-    4: 'Falling Growth & Falling Inflation',
-    'Unknown': 'Unknown'
-}
-
-# Function to assign regimes based on thresholds
-@st.cache_data
-def assign_regimes(sp_inflation_df, regime_definitions):
-    # Initialize Regime column
-    sp_inflation_df['Regime'] = np.nan
-
-    # Iterate over regimes and assign regime numbers
-    for regime in regime_definitions:
-        mask = (
-            (sp_inflation_df['S&P 500 MA Growth'] >= regime['S&P 500 Lower']) &
-            (sp_inflation_df['S&P 500 MA Growth'] < regime['S&P 500 Upper']) &
-            (sp_inflation_df['Inflation Rate MA Growth'] >= regime['Inflation Lower']) &
-            (sp_inflation_df['Inflation Rate MA Growth'] < regime['Inflation Upper'])
-        )
-        sp_inflation_df.loc[mask, 'Regime'] = regime['Regime']
-    return sp_inflation_df
-
 # --- Logging for Regime Assignment ---
 t0 = time.time()
 with st.spinner('Assigning Regimes...'):
@@ -449,14 +284,11 @@ print(f"DEBUG: Regime assignment took {t1-t0:.2f} seconds.")
 
 # Handle any NaN regimes (should not happen)
 sp_inflation_data['Regime'] = sp_inflation_data['Regime'].fillna('Unknown')
-if 'Unknown' in sp_inflation_data['Regime'].unique():
-    regime_colors['Unknown'] = 'lightgrey'
-    regime_labels_dict['Unknown'] = 'Unknown'
 
 # --- Logging for Tab Rendering ---
 t0 = time.time()
 print("DEBUG: Starting Tab rendering.")
-tabs = st.tabs(["Regime Visualization", "Asset Performance & Metrics"])
+tabs = st.tabs(["Regime Visualization", "Asset Classes"])
 t1 = time.time()
 print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
 
@@ -962,7 +794,9 @@ with tabs[0]:
 
 # Tab 2: Asset Performance & Metrics
 with tabs[1]:
-    st.markdown("<h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Asset Performance Over Time</h2>", unsafe_allow_html=True)
+    st.markdown("""
+    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Asset Class Performance Over Time</h2>
+    """, unsafe_allow_html=True)
     t_tab2 = time.time()
     print("DEBUG: Rendering Tab 2: Asset Performance & Metrics (MERGED).")
     log_scale_normalized = False
@@ -984,22 +818,18 @@ with tabs[1]:
     # Add shaded regions for regimes (optimized: bulk shape update)
     t_shapes_start = time.time()
     shapes = []
-    for i in range(len(regime_periods_df)):
-        start_date_regime = regime_periods_df.loc[i, 'Start Date']
-        regime = regime_periods_df.loc[i, 'Regime']
+    merged_asset_data = merged_asset_data.sort_values("DateTime")
+    regime_changes = merged_asset_data['Regime'].ne(merged_asset_data['Regime'].shift()).cumsum()
+    for (regime, segment), group in merged_asset_data.groupby(['Regime', regime_changes]):
+        if pd.isna(regime):
+            continue
         color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
-        if i < len(regime_periods_df) - 1:
-            # Set end date to the exact same day as the next regime's start date
-            end_date_regime = regime_periods_df.loc[i+1, 'Start Date']
-        else:
-            # For the last regime, set end date to the maximum date
-            end_date_regime = merged_asset_data['DateTime'].max()
         shapes.append(dict(
             type="rect",
             xref="x",
             yref="paper",
-            x0=start_date_regime,
-            x1=end_date_regime,
+            x0=group['DateTime'].iloc[0],
+            x1=group['DateTime'].iloc[-1],
             y0=0,
             y1=1,
             fillcolor=color,
@@ -1015,7 +845,7 @@ with tabs[1]:
     t_vrect_start = time.time()
     fig2.update_layout(shapes=shapes,
         title={
-            'text': 'Asset Performance Over Time (Normalized to 100 at First Available Date)',
+            'text': 'Asset Class Performance Over Time (Normalized to 100 at First Available Date)',
             'x': 0.5,
             'xanchor': 'center',
             'yanchor': 'top',
@@ -1082,7 +912,9 @@ with tabs[1]:
     st.plotly_chart(fig2, use_container_width=False)
 
     # --- Performance Metrics per Regime (from former Tab 3) ---
-    st.markdown("<h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Trade Log</h2>", unsafe_allow_html=True)
+    st.markdown("""
+    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Trade Log</h2>
+    """, unsafe_allow_html=True)
     print("DEBUG: Rendering Performance Metrics Section (from former Tab 3).")
     t_metrics_start = time.time()
     with st.spinner('Merging asset data with regimes...'):
@@ -1142,37 +974,21 @@ with tabs[1]:
             # Temporary placeholder for aggregated metrics logic (will be replaced)
             if len(group) >= 2:
                 returns = group[asset].pct_change().dropna()
-                volatility = returns.std() * np.sqrt(12) if not returns.empty else np.nan
-                cumulative = (1 + returns).cumprod()
-                cumulative_max = cumulative.cummax()
-                drawdown = cumulative / cumulative_max - 1
-                max_drawdown = drawdown.min() if not drawdown.empty else np.nan
-                sharpe_ratio = period_return / volatility if volatility != 0 and not np.isnan(volatility) and not np.isnan(period_return) else np.nan
-
-                # performance_results.append({
-                #     'Asset': asset,
-                #     'Regime': regime_label,
-                #     'Average Return': period_return, # Still using period return here temporarily
-                #     'Volatility': volatility,
-                #     'Sharpe Ratio': sharpe_ratio,
-                #     'Max Drawdown': max_drawdown,
-                #     # Add Start/End Date to link back if needed, or use Regime_Start_Group
-                #     'Regime_Start_Group': group_id # Keep track of which period this belongs to
-                # })
-                t_metrics_inner_end = time.time()
-                print(f"DEBUG: Tab 2 - Asset {asset} regime {regime_num} (Group {group_id}) metrics calc took {t_metrics_inner_end-t_metrics_inner_start:.3f} seconds.")
-            else: # Handle single-row groups if they occur (though less likely now)
-                 # performance_results.append({
-                 #     'Asset': asset,
-                 #     'Regime': regime_label,
-                 #     'Average Return': np.nan,
-                 #     'Volatility': np.nan,
-                 #     'Sharpe Ratio': np.nan,
-                 #     'Max Drawdown': np.nan,
-                 #     'Regime_Start_Group': group_id
-                 # })
-                 t_metrics_inner_end = time.time()
-                 print(f"DEBUG: Tab 2 - Asset {asset} regime {regime_num} (Group {group_id}) (SKIP < 2 rows) metrics calc took {t_metrics_inner_end-t_metrics_inner_start:.3f} seconds.")
+                volatility = returns.std() * np.sqrt(12)
+                mean_ret = returns.mean() * 12
+                sharpe = mean_ret / (returns.std() * np.sqrt(12)) if returns.std() > 0 else float('nan')
+                cummax = group[asset].cummax()
+                drawdown = (group[asset] - cummax) / cummax
+                max_drawdown = drawdown.min()
+                trade_log_results[-1]['Volatility'] = volatility
+                trade_log_results[-1]['Sharpe Ratio'] = sharpe
+                trade_log_results[-1]['Max Drawdown'] = max_drawdown
+            else:
+                trade_log_results[-1]['Volatility'] = float('nan')
+                trade_log_results[-1]['Sharpe Ratio'] = float('nan')
+                trade_log_results[-1]['Max Drawdown'] = float('nan')
+            t_metrics_inner_end = time.time()
+            print(f"DEBUG: Tab 2 - Asset {asset} regime {regime_num} (Group {group_id}) metrics calc took {t_metrics_inner_end-t_metrics_inner_start:.3f} seconds.")
             # --- End of Temporary Placeholder ---
 
 
@@ -1251,13 +1067,13 @@ with tabs[1]:
                 price_series = asset_prices.loc[mask, asset]
                 if len(price_series) > 1:
                     returns = price_series.pct_change().dropna()
-                    vol = returns.std() * np.sqrt(12)
+                    volatility = returns.std() * np.sqrt(12)
                     mean_ret = returns.mean() * 12
                     sharpe = mean_ret / (returns.std() * np.sqrt(12)) if returns.std() > 0 else float('nan')
                     cummax = price_series.cummax()
                     drawdown = (price_series - cummax) / cummax
                     max_dd = drawdown.min()
-                    trade_log_df.at[idx, 'Volatility'] = vol
+                    trade_log_df.at[idx, 'Volatility'] = volatility
                     trade_log_df.at[idx, 'Sharpe Ratio'] = sharpe
                     trade_log_df.at[idx, 'Max Drawdown'] = max_dd
             # Reorder columns
@@ -1367,7 +1183,6 @@ with tabs[1]:
                 st.markdown("<h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Bar Charts of Performance Metrics</h2>", unsafe_allow_html=True)
                 for metric in metrics_to_display:
                     fig3 = go.Figure()
-                    # Add regime background shading using shapes
                     unique_regimes = avg_metrics_table['Regime'].cat.categories
                     regime_x = list(unique_regimes)
                     for i, regime in enumerate(regime_x):
@@ -1405,7 +1220,6 @@ with tabs[1]:
                         height=500,
                         title_font=dict(size=20)
                     )
-                    # Set y-axis formatting for percentage metrics
                     if metric in ['Annualized Return (Aggregated)', 'Annualized Volatility (Aggregated)', 'Average Max Drawdown (Period Avg)']:
                         fig3.update_yaxes(tickformat=".0%")
                     st.plotly_chart(fig3, use_container_width=False)
@@ -1416,17 +1230,57 @@ with tabs[1]:
     else:
         st.warning("No trade log data available.")
 
-# --- Ensure consistent title formatting on Tab 1 ---
-# (Example for main chart, repeat as needed for all tab 1 charts)
-fig.update_layout(
-    title={
-        'text': 'Macro Regime Timeline: S&P 500 & Inflation',
-        'x': 0.5,
-        'xanchor': 'center',
-        'yanchor': 'top',
-    },
-    xaxis=dict(title='Date'),
-    # yaxis title and other layout properties as before
-)
-
-# Repeat similar update_layout for all other tab 1 charts to match this style.
+# Tab 2: Asset Classes (Refactored)
+with tabs[1]:
+    st.markdown("""
+    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Asset Class Performance Over Time</h2>
+    """, unsafe_allow_html=True)
+    asset_list_tab2 = ['S&P 500', 'Bonds', 'Gold']
+    with st.spinner('Merging asset data with regimes...'):
+        merged_asset_data = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    plot_asset_performance_over_time(
+        merged_asset_data,
+        asset_list_tab2,
+        asset_colors,
+        regime_bg_colors,
+        regime_labels_dict,
+        'Asset Class Performance Over Time (Normalized to 100 at First Available Date)'
+    )
+    st.markdown("""
+    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Trade Log</h2>
+    """, unsafe_allow_html=True)
+    merged_asset_data_metrics = merged_asset_data.copy()
+    trade_log_df = generate_trade_log(merged_asset_data_metrics, asset_list_tab2, regime_labels_dict)
+    if not trade_log_df.empty:
+        st.dataframe(
+            trade_log_df.style
+                .format({
+                    'Start Price': '{:.2f}',
+                    'End Price': '{:.2f}',
+                    'Period Return': '{:.2%}',
+                    'Volatility': '{:.2%}',
+                    'Sharpe Ratio': '{:.2f}',
+                    'Max Drawdown': '{:.2%}'
+                }),
+            use_container_width=True
+        )
+    else:
+        st.warning("No trade log data available.")
+    st.markdown("""
+    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
+    """, unsafe_allow_html=True)
+    avg_metrics_table = generate_aggregated_metrics(trade_log_df, merged_asset_data_metrics, asset_list_tab2, regime_labels_dict)
+    if not avg_metrics_table.empty:
+        st.dataframe(
+            avg_metrics_table.style
+                .format({
+                    'Annualized Return (Aggregated)': '{:.2%}',
+                    'Annualized Volatility (Aggregated)': '{:.2%}',
+                    'Sharpe Ratio (Aggregated)': '{:.2f}',
+                    'Average Max Drawdown (Period Avg)': '{:.2%}'
+                }),
+            use_container_width=True
+        )
+        plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict)
+    else:
+        st.warning("No aggregated metrics data available.")
