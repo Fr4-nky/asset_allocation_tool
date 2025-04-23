@@ -1,31 +1,50 @@
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import pandas as pd  # for regime shading logic
 
-def plot_asset_performance_over_time(merged_asset_data, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, chart_title):
+def plot_asset_performance_over_time(merged_asset_data, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, chart_title, regime_periods=None):
     fig = go.Figure()
-    # Add regime background shading
-    shapes = []
+    # Sort data
     merged_asset_data = merged_asset_data.sort_values("DateTime")
-    regime_changes = merged_asset_data['Regime'].ne(merged_asset_data['Regime'].shift()).cumsum()
-    for (regime, segment), group in merged_asset_data.groupby(['Regime', regime_changes]):
-        if pd.isna(regime):
-            continue
-        color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
-        shapes.append(dict(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=group['DateTime'].iloc[0],
-            x1=group['DateTime'].iloc[-1],
-            y0=0,
-            y1=1,
-            fillcolor=color,
-            opacity=1.0,
-            layer="below",
-            line_width=0
-        ))
+    # Add regime background shading, using provided periods or computed segments
+    shapes = []
+    if regime_periods is not None:
+        # regime_periods: list of dicts with keys 'Regime', 'Start', 'End'
+        for seg in regime_periods:
+            regime = seg['Regime']
+            # Accept both string and numeric regime keys
+            regime_key = next((k for k, v in regime_labels_dict.items() if v == regime or k == regime), regime)
+            if pd.isna(regime_key) or regime_key == 'Unknown':
+                continue
+            color = regime_bg_colors.get(regime_key, 'rgba(200,200,200,0.10)')
+            # Convert pandas Timestamp to python datetime or string for plotly
+            x0 = seg['Start']
+            x1 = seg['End']
+            if hasattr(x0, 'to_pydatetime'):
+                x0 = x0.to_pydatetime()
+            if hasattr(x1, 'to_pydatetime'):
+                x1 = x1.to_pydatetime()
+            shapes.append(dict(
+                type="rect", xref="x", yref="paper",
+                x0=x0, x1=x1,
+                y0=0, y1=1, fillcolor=color, opacity=1.0, layer="below", line_width=0
+            ))
+    else:
+        # fallback to grouping logic
+        regime_changes = merged_asset_data['Regime'].ne(merged_asset_data['Regime'].shift()).cumsum()
+        for (regime, segment), group in merged_asset_data.groupby(['Regime', regime_changes]):
+            if pd.isna(regime) or regime == 'Unknown':
+                continue
+            color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
+            shapes.append(dict(
+                type="rect", xref="x", yref="paper",
+                x0=group['DateTime'].iloc[0], x1=group['DateTime'].iloc[-1],
+                y0=0, y1=1, fillcolor=color, opacity=1.0, layer="below", line_width=0
+            ))
     fig.update_layout(shapes=shapes)
+    # Log regimes for debugging
+    print("DEBUG: plot_asset_performance_over_time regimes:", merged_asset_data['Regime'].value_counts().to_dict())
     # Plot normalized asset lines
     for asset in asset_list:
         if asset not in merged_asset_data.columns:

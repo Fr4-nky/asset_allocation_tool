@@ -12,11 +12,12 @@ asset_colors = {
     'MSCI USA Micro Cap': 'cyan',
 }
 
+REGIME_BG_ALPHA = 0.13  # Use the same alpha for all charts and tables
 regime_bg_colors = {
-    1: 'rgba(0, 128, 255, 0.13)',   # Rising Growth, Rising Inflation - Light Blue
-    2: 'rgba(0, 255, 0, 0.13)',     # Rising Growth, Falling Inflation - Light Green
-    3: 'rgba(255, 0, 0, 0.13)',     # Falling Growth, Rising Inflation - Light Red
-    4: 'rgba(255, 255, 0, 0.13)',   # Falling Growth, Falling Inflation - Light Yellow
+    1: f'rgba(0, 128, 255, {REGIME_BG_ALPHA})',   # Rising Growth, Rising Inflation - Light Blue
+    2: f'rgba(0, 255, 0, {REGIME_BG_ALPHA})',     # Rising Growth, Falling Inflation - Light Green
+    3: f'rgba(255, 0, 0, {REGIME_BG_ALPHA})',     # Falling Growth, Rising Inflation - Light Red
+    4: f'rgba(255, 255, 0, {REGIME_BG_ALPHA})',   # Falling Growth, Falling Inflation - Light Yellow
     'Unknown': 'lightgrey'
 }
 
