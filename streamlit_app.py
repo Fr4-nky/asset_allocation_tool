@@ -1145,6 +1145,16 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
             .apply(highlight_regime, axis=1),
         use_container_width=True
     )
+    # --- FOOTNOTES for Trade Log ---
+    tab.markdown("""
+**Column Definitions:**
+- **Period Return**: (End Price - Start Price) / Start Price
+- **Volatility**: Standard deviation of monthly returns within the period, annualized (multiplied by $\sqrt{12}$)
+- **Sharpe Ratio**: Annualized mean monthly return divided by annualized volatility, assuming risk-free rate = 0
+- **Max Drawdown**: Maximum observed loss from a peak to a trough during the period, based on monthly closing prices (as a percentage of the peak)
+
+*Volatility and Sharpe ratio cannot be calculated for 1-month periods.*
+""", unsafe_allow_html=True)
     tab.markdown("""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
     """, unsafe_allow_html=True)
@@ -1170,7 +1180,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
                 from config.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
-                color = 'rgba(200,200,200,0.13)'
+                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})"
         else:
             color = '#eeeeee'
         return [f'background-color: {color}'] * len(row)
@@ -1185,6 +1195,15 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
             .apply(highlight_regime_avg, axis=1),
         use_container_width=True
     )
+    # --- FOOTNOTES for Aggregated Performance Table ---
+    tab.markdown("""
+**Aggregation & Calculation Notes:**
+- **Annualized Return (Aggregated):** Average of monthly returns for each regime-asset group, annualized by multiplying by 12.
+- **Annualized Volatility (Aggregated):** Standard deviation of those monthly returns, annualized by multiplying by √12.
+- **Sharpe Ratio (Aggregated):** Aggregated annual return divided by aggregated annual volatility (0% risk-free rate).
+- **Average Max Drawdown:** Mean of the maximum drawdowns observed in each period for each regime-asset group.
+- **Missing Data Handling:** Excludes any missing (NaN) values from all calculations.
+""", unsafe_allow_html=True)
     plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict)
 
 # Tab 2: Asset Classes (Refactored)
