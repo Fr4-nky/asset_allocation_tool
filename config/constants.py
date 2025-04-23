@@ -10,6 +10,20 @@ asset_colors = {
     'MSCI USA Mid Cap': 'orange',
     'MSCI USA Small Cap': 'lime',
     'MSCI USA Micro Cap': 'cyan',
+    'MSCI USA Cyclical Stocks': 'magenta',
+    'MSCI USA Defensive Stocks': 'teal',
+    # US Sector ETFs
+    'US Communication Services': '#2E8B57',
+    'US Basic Materials': '#8B0000',
+    'US Energy': '#FF8C00',
+    'US Financial': '#FFD700',
+    'US Industrial': '#1E90FF',
+    'US Technology': '#6A5ACD',
+    'US Consumer Discretionary': '#FF69B4',
+    'US Consumer Staples': '#D2691E',
+    'US Utilities': '#00CED1',
+    'US Health Care': '#DC143C',
+    'US Real Estate': '#8B4513',
 }
 
 REGIME_BG_ALPHA = 0.13  # Use the same alpha for all charts and tables
@@ -43,6 +57,25 @@ asset_list_tab3 = [
     'MSCI USA Mid Cap',
     'MSCI USA Small Cap',
     'MSCI USA Micro Cap'
+]
+
+asset_list_tab4 = [
+    'MSCI USA Cyclical Stocks',
+    'MSCI USA Defensive Stocks'
+]
+
+asset_list_tab5 = [
+    'US Communication Services',
+    'US Basic Materials',
+    'US Energy',
+    'US Financial',
+    'US Industrial',
+    'US Technology',
+    'US Consumer Discretionary',
+    'US Consumer Staples',
+    'US Utilities',
+    'US Health Care',
+    'US Real Estate'
 ]
 
 regime_definitions = [

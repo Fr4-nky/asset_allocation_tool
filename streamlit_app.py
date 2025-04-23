@@ -7,12 +7,13 @@ import time
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 import re
+import concurrent.futures
 
 from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
 from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
-from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, regime_definitions, REGIME_BG_ALPHA
+from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, regime_definitions, REGIME_BG_ALPHA
 
 # Set page configuration
 st.set_page_config(
@@ -42,7 +43,7 @@ This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate da
 # Load Data Function
 @st.cache_data
 def load_data():
-    # --- Fetch S&P 500, Inflation from API ---
+    # --- Define all data URLs ---
     sp500_url = "https://www.longtermtrends.net/data-sp500-since-1871/"
     inflation_url = "https://www.longtermtrends.net/data-inflation-forecast/"
     bonds_url = "https://www.longtermtrends.net/data-total-return-bond-index/"
@@ -52,16 +53,78 @@ def load_data():
     msci_mid_url   = "https://www.longtermtrends.net/data-msci-usa-mid-cap/"
     msci_small_url = "https://www.longtermtrends.net/data-msci-usa-small-cap/"
     msci_micro_url = "https://www.longtermtrends.net/data-msci-usa-micro-cap/"
+    msci_cyclical_url = "https://www.longtermtrends.net/data-msci-cyclical-stocks/"
+    msci_defensive_url = "https://www.longtermtrends.net/data-msci-defensive-stocks/"
+    # US Sector URLs
+    comm_url = "https://www.longtermtrends.net/data-us-communication-services/"
+    mat_url = "https://www.longtermtrends.net/data-us-basic-materials/"
+    energy_url = "https://www.longtermtrends.net/data-us-energy/"
+    financial_url = "https://www.longtermtrends.net/data-us-financial/"
+    industrial_url = "https://www.longtermtrends.net/data-us-industrial/"
+    technology_url = "https://www.longtermtrends.net/data-us-technology/"
+    cons_stap_url = "https://www.longtermtrends.net/data-us-consumer-staples/"
+    utilities_url = "https://www.longtermtrends.net/data-us-utiliiies/"
+    health_url = "https://www.longtermtrends.net/data-us-thcare/"
+    cons_disc_url = "https://www.longtermtrends.net/data-us-consumer-discretionary/"
+    real_estate_url = "https://www.longtermtrends.net/data-us-real-estate/"
 
-    # Fetch each dataset (returns df with 'Date' as index or None)
-    df_sp500 = fetch_and_decode(sp500_url, 'S&P 500')
-    df_inflation = fetch_and_decode(inflation_url, 'Inflation Rate')
-    df_bonds = fetch_and_decode(bonds_url, 'Bonds')
-    df_gold = fetch_and_decode(gold_url, 'Gold')
-    df_msci_large = fetch_and_decode(msci_large_url, 'MSCI USA Large Cap')
-    df_msci_mid   = fetch_and_decode(msci_mid_url,   'MSCI USA Mid Cap')
-    df_msci_small = fetch_and_decode(msci_small_url, 'MSCI USA Small Cap')
-    df_msci_micro = fetch_and_decode(msci_micro_url, 'MSCI USA Micro Cap')
+    # --- Fetch all datasets in parallel ---
+    urls = {
+        'S&P 500': sp500_url,
+        'Inflation Rate': inflation_url,
+        'Bonds': bonds_url,
+        'Gold': gold_url,
+        'MSCI USA Large Cap': msci_large_url,
+        'MSCI USA Mid Cap': msci_mid_url,
+        'MSCI USA Small Cap': msci_small_url,
+        'MSCI USA Micro Cap': msci_micro_url,
+        'MSCI USA Cyclical Stocks': msci_cyclical_url,
+        'MSCI USA Defensive Stocks': msci_defensive_url,
+        'US Communication Services': comm_url,
+        'US Basic Materials': mat_url,
+        'US Energy': energy_url,
+        'US Financial': financial_url,
+        'US Industrial': industrial_url,
+        'US Technology': technology_url,
+        'US Consumer Staples': cons_stap_url,
+        'US Utilities': utilities_url,
+        'US Health Care': health_url,
+        'US Consumer Discretionary': cons_disc_url,
+        'US Real Estate': real_estate_url
+    }
+    results = {}
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_name = {executor.submit(fetch_and_decode, url, name): name for name, url in urls.items()}
+        for future in concurrent.futures.as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                results[name] = future.result()
+            except Exception as e:
+                print(f"ERROR fetching {name}: {e}")
+                results[name] = None
+
+    # Unpack results
+    df_sp500 = results.get('S&P 500')
+    df_inflation = results.get('Inflation Rate')
+    df_bonds = results.get('Bonds')
+    df_gold = results.get('Gold')
+    df_msci_large = results.get('MSCI USA Large Cap')
+    df_msci_mid = results.get('MSCI USA Mid Cap')
+    df_msci_small = results.get('MSCI USA Small Cap')
+    df_msci_micro = results.get('MSCI USA Micro Cap')
+    df_msci_cyclical = results.get('MSCI USA Cyclical Stocks')
+    df_msci_defensive = results.get('MSCI USA Defensive Stocks')
+    df_comm = results.get('US Communication Services')
+    df_mat = results.get('US Basic Materials')
+    df_energy = results.get('US Energy')
+    df_financial = results.get('US Financial')
+    df_industrial = results.get('US Industrial')
+    df_technology = results.get('US Technology')
+    df_cons_stap = results.get('US Consumer Staples')
+    df_utilities = results.get('US Utilities')
+    df_health = results.get('US Health Care')
+    df_cons_disc = results.get('US Consumer Discretionary')
+    df_real_estate = results.get('US Real Estate')
 
     # --- Data Preprocessing (Resampling, Merging, Filtering) ---
     print("DEBUG: Applying resampling and merging logic...")
@@ -94,6 +157,20 @@ def load_data():
     df_msci_mid_resampled = resample_and_correct_date(df_msci_mid, 'MSCI USA Mid Cap')
     df_msci_small_resampled = resample_and_correct_date(df_msci_small, 'MSCI USA Small Cap')
     df_msci_micro_resampled = resample_and_correct_date(df_msci_micro, 'MSCI USA Micro Cap')
+    df_msci_cyclical_resampled = resample_and_correct_date(df_msci_cyclical, 'MSCI USA Cyclical Stocks')
+    df_msci_defensive_resampled = resample_and_correct_date(df_msci_defensive, 'MSCI USA Defensive Stocks')
+    # Resample US Sector series
+    df_comm_resampled = resample_and_correct_date(df_comm, 'US Communication Services')
+    df_mat_resampled = resample_and_correct_date(df_mat, 'US Basic Materials')
+    df_energy_resampled = resample_and_correct_date(df_energy, 'US Energy')
+    df_financial_resampled = resample_and_correct_date(df_financial, 'US Financial')
+    df_industrial_resampled = resample_and_correct_date(df_industrial, 'US Industrial')
+    df_technology_resampled = resample_and_correct_date(df_technology, 'US Technology')
+    df_cons_stap_resampled = resample_and_correct_date(df_cons_stap, 'US Consumer Staples')
+    df_utilities_resampled = resample_and_correct_date(df_utilities, 'US Utilities')
+    df_health_resampled = resample_and_correct_date(df_health, 'US Health Care')
+    df_cons_disc_resampled = resample_and_correct_date(df_cons_disc, 'US Consumer Discretionary')
+    df_real_estate_resampled = resample_and_correct_date(df_real_estate, 'US Real Estate')
 
     # 2. Inner Merge S&P 500 and Inflation Rate (for Tab 1)
     sp_inflation_df = pd.DataFrame() # Initialize empty df
@@ -128,7 +205,13 @@ def load_data():
     asset_ts_data = pd.DataFrame() # Initialize empty df
     all_asset_dfs = [df for df in [df_sp500_resampled, df_gold_resampled, df_bonds_resampled,
                                    df_msci_large_resampled, df_msci_mid_resampled,
-                                   df_msci_small_resampled, df_msci_micro_resampled] if df is not None]
+                                   df_msci_small_resampled, df_msci_micro_resampled,
+                                   df_msci_cyclical_resampled, df_msci_defensive_resampled,
+                                   df_comm_resampled, df_mat_resampled, df_energy_resampled,
+                                   df_financial_resampled, df_industrial_resampled,
+                                   df_technology_resampled, df_cons_stap_resampled,
+                                   df_utilities_resampled, df_health_resampled,
+                                   df_cons_disc_resampled, df_real_estate_resampled] if df is not None]
     if len(all_asset_dfs) > 1:
         print(f"DEBUG: Performing OUTER merge on {len(all_asset_dfs)} resampled asset DataFrames...")
         # Ensure all dataframes have the same index name before merging
@@ -136,6 +219,7 @@ def load_data():
         for i, df in enumerate(all_asset_dfs):
             if df.index.name != base_index_name:
                 print(f"WARN: Aligning index name for asset df {i} ('{df.index.name}' -> '{base_index_name}')")
+                # Decide on a common name, e.g., 'Date' or use the first df's name
                 df.index.name = base_index_name
         
         # Perform the outer merge iteratively
@@ -304,7 +388,7 @@ sp_inflation_data['Regime'] = sp_inflation_data['Regime'].fillna('Unknown')
 # --- Logging for Tab Rendering ---
 t0 = time.time()
 print("DEBUG: Starting Tab rendering.")
-tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap"])
+tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors"])
 t1 = time.time()
 print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
 
@@ -924,6 +1008,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     df_periods = df_periods[df_periods['Regime'] != 'Unknown']
     change_mask2 = df_periods['Regime'].ne(df_periods['Regime'].shift())
     df_start2 = df_periods.loc[change_mask2, ['DateTime', 'Regime']].copy()
+    # Format start dates
     df_start2['Start'] = df_start2['DateTime']
     df_start2['End'] = df_start2['Start'].shift(-1)
     df_start2.at[df_start2.index[-1], 'End'] = df_periods['DateTime'].iloc[-1]
@@ -1037,6 +1122,34 @@ with tabs[2]:
         tabs[2],
         "Performance of Large, Mid, Small, and Micro Cap Stocks Across Regimes",
         asset_list_tab3,
+        asset_colors,
+        regime_bg_colors,
+        regime_labels_dict,
+        sp_inflation_data,
+        asset_ts_data
+    )
+
+# Tab 4: Cyclical vs. Defensive
+tabs[3].title = "Cyclical vs. Defensive"
+with tabs[3]:
+    render_asset_analysis_tab(
+        tabs[3],
+        "Performance of MSCI USA Cyclical vs. Defensive Stocks Across Regimes",
+        asset_list_tab4,
+        asset_colors,
+        regime_bg_colors,
+        regime_labels_dict,
+        sp_inflation_data,
+        asset_ts_data
+    )
+
+# Tab 5: US Sectors
+tabs[4].title = "US Sectors"
+with tabs[4]:
+    render_asset_analysis_tab(
+        tabs[4],
+        "Performance of US Sector ETFs Across Regimes",
+        asset_list_tab5,
         asset_colors,
         regime_bg_colors,
         regime_labels_dict,
