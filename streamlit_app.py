@@ -391,10 +391,28 @@ ma_length = st.sidebar.number_input(
 sp500_n = ma_length
 inflation_n = ma_length
 
-# --- Apply >= 1972 Filter BEFORE computing MAs and Growth (to match OLD CODE) ---
-filter_date = pd.Timestamp('1972-01-01')
-sp_inflation_data = sp_inflation_data[sp_inflation_data['DateTime'] >= filter_date].copy()
-print(f"DEBUG: Applied filter for dates >= {filter_date}. Shape: {sp_inflation_data.shape}")
+# --- User-defined Start and End Dates BEFORE computing MAs and Growth ---
+# Determine full data span
+min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
+max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
+# Separate sidebar inputs
+start_date = st.sidebar.date_input(
+    "Start Date", value=min_date, min_value=min_date, max_value=max_date, key="start_date"
+)
+end_date = st.sidebar.date_input(
+    "End Date", value=max_date, min_value=min_date, max_value=max_date, key="end_date"
+)
+if start_date > end_date:
+    st.sidebar.error("Start Date must be on or before End Date")
+    st.stop()
+# Debug logging
+print(f"DEBUG: Selected date range: {start_date} to {end_date}")
+# Convert to Timestamps
+start_date, end_date = pd.to_datetime(start_date), pd.to_datetime(end_date)
+# Filter both datasets
+sp_inflation_data = sp_inflation_data[(sp_inflation_data['DateTime'] >= start_date) & (sp_inflation_data['DateTime'] <= end_date)].copy()
+asset_ts_data = asset_ts_data[(asset_ts_data['DateTime'] >= start_date) & (asset_ts_data['DateTime'] <= end_date)].copy()
+print(f"DEBUG: After filtering: SP shape {sp_inflation_data.shape}, Asset shape {asset_ts_data.shape}")
 
 # --- Logging for Moving Average Computation ---
 t0 = time.time()
