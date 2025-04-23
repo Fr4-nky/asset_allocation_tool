@@ -24,6 +24,21 @@ asset_colors = {
     'US Utilities': '#00CED1',
     'US Health Care': '#DC143C',
     'US Real Estate': '#8B4513',
+    # MSCI World Factor Strategies
+    'MSCI World Momentum': '#1b9e77',
+    'MSCI World Growth Target': '#d95f02',
+    'MSCI World Quality': '#7570b3',
+    'MSCI World Governance Quality': '#e7298a',
+    'MSCI World Dividend Masters': '#66a61e',
+    'MSCI World High Dividend Yield': '#e6ab02',
+    'MSCI World Buyback Yield': '#a6761d',
+    'MSCI World Total Shareholder Yield': '#666666',
+    'MSCI World Small Cap': '#1f78b4',
+    'MSCI World Equal Weighted': '#b2df8a',
+    'MSCI World Enhanced Value': '#fb9a99',
+    'MSCI World Prime Value': '#fdbf6f',
+    'MSCI World Minimum Volatility (USD)': '#cab2d6',
+    'MSCI World Risk Weighted': '#6a3d9a',
 }
 
 REGIME_BG_ALPHA = 0.13  # Use the same alpha for all charts and tables
@@ -76,6 +91,23 @@ asset_list_tab5 = [
     'US Utilities',
     'US Health Care',
     'US Real Estate'
+]
+
+asset_list_tab6 = [
+    'MSCI World Momentum',
+    'MSCI World Growth Target',
+    'MSCI World Quality',
+    'MSCI World Governance Quality',
+    'MSCI World Dividend Masters',
+    'MSCI World High Dividend Yield',
+    'MSCI World Buyback Yield',
+    'MSCI World Total Shareholder Yield',
+    'MSCI World Small Cap',
+    'MSCI World Equal Weighted',
+    'MSCI World Enhanced Value',
+    'MSCI World Prime Value',
+    'MSCI World Minimum Volatility (USD)',
+    'MSCI World Risk Weighted'
 ]
 
 regime_definitions = [

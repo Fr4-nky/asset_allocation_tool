@@ -13,7 +13,7 @@ from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
 from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
-from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, regime_definitions, REGIME_BG_ALPHA
+from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, regime_definitions, REGIME_BG_ALPHA
 
 # Set page configuration
 st.set_page_config(
@@ -67,6 +67,21 @@ def load_data():
     health_url = "https://www.longtermtrends.net/data-us-thcare/"
     cons_disc_url = "https://www.longtermtrends.net/data-us-consumer-discretionary/"
     real_estate_url = "https://www.longtermtrends.net/data-us-real-estate/"
+    # MSCI World Factor Strategy URLs
+    world_mom_url = "https://www.longtermtrends.net/data-msci-world-momentum/"
+    world_growth_url = "https://www.longtermtrends.net/data-msci-world-growth-target/"
+    world_quality_url = "https://www.longtermtrends.net/data-msci-world-quality/"
+    world_gov_url = "https://www.longtermtrends.net/data-msci-world-governance-quality/"
+    world_div_mast_url = "https://www.longtermtrends.net/data-msci-world-dividend-masters/"
+    world_high_div_url = "https://www.longtermtrends.net/data-msci-world-high-dividend-yield/"
+    world_buyback_url = "https://www.longtermtrends.net/data-msci-world-buy-back-yield/"
+    world_tsy_url = "https://www.longtermtrends.net/data-msci-world-total-shareholder-yield/"
+    world_small_url = "https://www.longtermtrends.net/data-msci-world-small-cap/"
+    world_ew_url = "https://www.longtermtrends.net/data-msci-world-equal-weighted/"
+    world_enh_val_url = "https://www.longtermtrends.net/data-msci-world-enhanced-value/"
+    world_prime_val_url = "https://www.longtermtrends.net/data-msci-world-prime-value/"
+    world_min_vol_url = "https://www.longtermtrends.net/data-msci-minimum-volatility/"
+    world_risk_url = "https://www.longtermtrends.net/data-msci-world-risk-weighted/"
 
     # --- Fetch all datasets in parallel ---
     urls = {
@@ -90,7 +105,22 @@ def load_data():
         'US Utilities': utilities_url,
         'US Health Care': health_url,
         'US Consumer Discretionary': cons_disc_url,
-        'US Real Estate': real_estate_url
+        'US Real Estate': real_estate_url,
+        # Factor strategies
+        'MSCI World Momentum': world_mom_url,
+        'MSCI World Growth Target': world_growth_url,
+        'MSCI World Quality': world_quality_url,
+        'MSCI World Governance Quality': world_gov_url,
+        'MSCI World Dividend Masters': world_div_mast_url,
+        'MSCI World High Dividend Yield': world_high_div_url,
+        'MSCI World Buyback Yield': world_buyback_url,
+        'MSCI World Total Shareholder Yield': world_tsy_url,
+        'MSCI World Small Cap': world_small_url,
+        'MSCI World Equal Weighted': world_ew_url,
+        'MSCI World Enhanced Value': world_enh_val_url,
+        'MSCI World Prime Value': world_prime_val_url,
+        'MSCI World Minimum Volatility (USD)': world_min_vol_url,
+        'MSCI World Risk Weighted': world_risk_url
     }
     results = {}
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -125,6 +155,21 @@ def load_data():
     df_health = results.get('US Health Care')
     df_cons_disc = results.get('US Consumer Discretionary')
     df_real_estate = results.get('US Real Estate')
+    # Factor data
+    df_world_momentum = results.get('MSCI World Momentum')
+    df_world_growth = results.get('MSCI World Growth Target')
+    df_world_quality = results.get('MSCI World Quality')
+    df_world_gov = results.get('MSCI World Governance Quality')
+    df_world_div_mast = results.get('MSCI World Dividend Masters')
+    df_world_high_div = results.get('MSCI World High Dividend Yield')
+    df_world_buyback = results.get('MSCI World Buyback Yield')
+    df_world_tsy = results.get('MSCI World Total Shareholder Yield')
+    df_world_small = results.get('MSCI World Small Cap')
+    df_world_ew = results.get('MSCI World Equal Weighted')
+    df_world_enh_val = results.get('MSCI World Enhanced Value')
+    df_world_prime_val = results.get('MSCI World Prime Value')
+    df_world_min_vol = results.get('MSCI World Minimum Volatility (USD)')
+    df_world_risk = results.get('MSCI World Risk Weighted')
 
     # --- Data Preprocessing (Resampling, Merging, Filtering) ---
     print("DEBUG: Applying resampling and merging logic...")
@@ -171,6 +216,21 @@ def load_data():
     df_health_resampled = resample_and_correct_date(df_health, 'US Health Care')
     df_cons_disc_resampled = resample_and_correct_date(df_cons_disc, 'US Consumer Discretionary')
     df_real_estate_resampled = resample_and_correct_date(df_real_estate, 'US Real Estate')
+    # Resample factor series
+    df_world_momentum_resampled = resample_and_correct_date(df_world_momentum, 'MSCI World Momentum')
+    df_world_growth_resampled = resample_and_correct_date(df_world_growth, 'MSCI World Growth Target')
+    df_world_quality_resampled = resample_and_correct_date(df_world_quality, 'MSCI World Quality')
+    df_world_gov_resampled = resample_and_correct_date(df_world_gov, 'MSCI World Governance Quality')
+    df_world_div_mast_resampled = resample_and_correct_date(df_world_div_mast, 'MSCI World Dividend Masters')
+    df_world_high_div_resampled = resample_and_correct_date(df_world_high_div, 'MSCI World High Dividend Yield')
+    df_world_buyback_resampled = resample_and_correct_date(df_world_buyback, 'MSCI World Buyback Yield')
+    df_world_tsy_resampled = resample_and_correct_date(df_world_tsy, 'MSCI World Total Shareholder Yield')
+    df_world_small_resampled = resample_and_correct_date(df_world_small, 'MSCI World Small Cap')
+    df_world_ew_resampled = resample_and_correct_date(df_world_ew, 'MSCI World Equal Weighted')
+    df_world_enh_val_resampled = resample_and_correct_date(df_world_enh_val, 'MSCI World Enhanced Value')
+    df_world_prime_val_resampled = resample_and_correct_date(df_world_prime_val, 'MSCI World Prime Value')
+    df_world_min_vol_resampled = resample_and_correct_date(df_world_min_vol, 'MSCI World Minimum Volatility (USD)')
+    df_world_risk_resampled = resample_and_correct_date(df_world_risk, 'MSCI World Risk Weighted')
 
     # 2. Inner Merge S&P 500 and Inflation Rate (for Tab 1)
     sp_inflation_df = pd.DataFrame() # Initialize empty df
@@ -211,7 +271,14 @@ def load_data():
                                    df_financial_resampled, df_industrial_resampled,
                                    df_technology_resampled, df_cons_stap_resampled,
                                    df_utilities_resampled, df_health_resampled,
-                                   df_cons_disc_resampled, df_real_estate_resampled] if df is not None]
+                                   df_cons_disc_resampled, df_real_estate_resampled,
+                                   df_world_momentum_resampled, df_world_growth_resampled,
+                                   df_world_quality_resampled, df_world_gov_resampled,
+                                   df_world_div_mast_resampled, df_world_high_div_resampled,
+                                   df_world_buyback_resampled, df_world_tsy_resampled,
+                                   df_world_small_resampled, df_world_ew_resampled,
+                                   df_world_enh_val_resampled, df_world_prime_val_resampled,
+                                   df_world_min_vol_resampled, df_world_risk_resampled] if df is not None]
     if len(all_asset_dfs) > 1:
         print(f"DEBUG: Performing OUTER merge on {len(all_asset_dfs)} resampled asset DataFrames...")
         # Ensure all dataframes have the same index name before merging
@@ -388,7 +455,7 @@ sp_inflation_data['Regime'] = sp_inflation_data['Regime'].fillna('Unknown')
 # --- Logging for Tab Rendering ---
 t0 = time.time()
 print("DEBUG: Starting Tab rendering.")
-tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors"])
+tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors", "Factor Investing"])
 t1 = time.time()
 print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
 
@@ -1150,6 +1217,20 @@ with tabs[4]:
         tabs[4],
         "Performance of US Sector ETFs Across Regimes",
         asset_list_tab5,
+        asset_colors,
+        regime_bg_colors,
+        regime_labels_dict,
+        sp_inflation_data,
+        asset_ts_data
+    )
+
+# Tab 6: Factor Investing
+tabs[5].title = "Factor Investing"
+with tabs[5]:
+    render_asset_analysis_tab(
+        tabs[5],
+        "Performance of MSCI World Factor Strategies Across Regimes",
+        asset_list_tab6,
         asset_colors,
         regime_bg_colors,
         regime_labels_dict,
