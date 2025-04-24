@@ -8,19 +8,14 @@ import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 import re
 import concurrent.futures
+import datetime  # for default dates and cutoffs
+import hashlib
 
 from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
 from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
 from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, regime_definitions, REGIME_BG_ALPHA
-
-# Set page configuration
-st.set_page_config(
-    page_title="Macroeconomic Regimes and Asset Performance",
-    layout="wide",
-    page_icon="https://www.longtermtrends.net/static/my_app/images/favicon.ico"
-)
 
 # --- Add meta tags for SEO and social sharing ---
 meta_title = "Macroeconomic Regimes and Asset Performance Analysis | Longtermtrends"
@@ -106,7 +101,7 @@ def load_data():
         'US Health Care': health_url,
         'US Consumer Discretionary': cons_disc_url,
         'US Real Estate': real_estate_url,
-        # Factor strategies
+        # Factor data
         'MSCI World Momentum': world_mom_url,
         'MSCI World Growth Target': world_growth_url,
         'MSCI World Quality': world_quality_url,
@@ -319,7 +314,9 @@ def load_data():
         # Ensure the date column is named 'DateTime'
         date_col_asset = next((col for col in ['Date', 'index', 'DateTime'] if col in asset_ts_data.columns), None)
         if date_col_asset and date_col_asset != 'DateTime':
-            asset_ts_data = asset_ts_data.rename(columns={date_col_asset: 'DateTime'})
+             print(f"WARN: Index names differ ('{date_col_asset}' vs 'DateTime'). Aligning index name for merge.")
+             # Decide on a common name, e.g., 'Date' or use the first df's name
+             asset_ts_data = asset_ts_data.rename(columns={date_col_asset: 'DateTime'})
         elif 'DateTime' not in asset_ts_data.columns:
              print("ERROR: Could not identify date column to rename to 'DateTime' in asset_ts_data")
         print("DEBUG: Reset index for asset_ts_data, 'DateTime' column ensured.")
@@ -359,6 +356,25 @@ def load_data():
     # Return the processed S&P/Inflation df and the filtered asset df
     return sp_inflation_df.copy(), asset_ts_data.copy()
 
+# Define get_dynamic_cutoff_date ONCE at the top-level, so it is available to all tabs
+def get_dynamic_cutoff_date(asset_ts_data, asset_list, min_assets_required):
+    df = asset_ts_data[['DateTime'] + [a for a in asset_list if a in asset_ts_data.columns]].copy()
+    df = df.set_index('DateTime')
+    active_assets = df.notna().sum(axis=1)
+    dynamic_cutoff = active_assets[active_assets >= min_assets_required].index.min()
+    return dynamic_cutoff
+
+# --- Helper: Compute dynamic cutoff date based on trade log (regime start with N assets) ---
+def get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required):
+    # For each date (not regime), count number of unique assets present in the trade log
+    trade_log_df = trade_log_df.sort_values('Start Date')
+    asset_counts = trade_log_df.groupby('Start Date')['Asset'].nunique()
+    eligible_dates = asset_counts[asset_counts >= min_assets_required]
+    if not eligible_dates.empty:
+        return pd.to_datetime(eligible_dates.index[0]).date()
+    else:
+        return None
+
 with st.spinner('Loading data...'):
     t0 = time.time()
     sp_inflation_data, asset_ts_data = load_data()
@@ -391,13 +407,18 @@ ma_length = st.sidebar.number_input(
 sp500_n = ma_length
 inflation_n = ma_length
 
+# Global checkbox for asset start override
+if 'include_late_assets' not in st.session_state:
+    st.session_state['include_late_assets'] = False
+include_late_assets = st.session_state['include_late_assets']
+
 # --- User-defined Start and End Dates BEFORE computing MAs and Growth ---
 # Determine full data span
 min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
 max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
 # Separate sidebar inputs
 start_date = st.sidebar.date_input(
-    "Start Date", value=min_date, min_value=min_date, max_value=max_date, key="start_date"
+    "Start Date", value=datetime.date(1972, 1, 31), min_value=min_date, max_value=max_date, key="start_date"
 )
 end_date = st.sidebar.date_input(
     "End Date", value=max_date, min_value=min_date, max_value=max_date, key="end_date"
@@ -424,6 +445,11 @@ with st.spinner('Computing Moving Averages...'):
         sp_inflation_data['Inflation Rate'], window_size=inflation_n
     )
     print("DEBUG: Moving averages computed.")
+    # Compute moving-average-derived cutoff date
+    ma_start_date = sp_inflation_data.loc[
+        sp_inflation_data['S&P 500 MA'].notna(), 'DateTime'
+    ].min().date()
+    st.session_state['ma_start_date'] = ma_start_date
 t1 = time.time()
 print(f"DEBUG: Moving average computation took {t1-t0:.2f} seconds.")
 
@@ -942,16 +968,15 @@ with tabs[0]:
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Regime Periods</h2>
     """, unsafe_allow_html=True)
     # Prepare data for accurate regime periods: drop unknown or NaN
-    df_periods = sp_inflation_data.dropna(subset=['Regime'])
-    df_periods = df_periods[df_periods['Regime'] != 'Unknown']
-    # Identify where each regime segment starts
-    change_mask = df_periods['Regime'].ne(df_periods['Regime'].shift())
-    df_start = df_periods.loc[change_mask, ['DateTime', 'Regime']].copy()
+    dfp = sp_inflation_data.dropna(subset=['Regime'])
+    dfp = dfp[dfp['Regime'] != 'Unknown']
+    change_mask = dfp['Regime'].ne(dfp['Regime'].shift())
+    df_start = dfp.loc[change_mask, ['DateTime', 'Regime']].copy()
     # Format start dates
     df_start['Start Date'] = df_start['DateTime'].dt.strftime('%Y-%m-%d')
     # Compute end dates as next segment's start, last takes final date
     df_start['End Date'] = df_start['Start Date'].shift(-1)
-    last_date = df_periods['DateTime'].iloc[-1].strftime('%Y-%m-%d')
+    last_date = dfp['DateTime'].iloc[-1].strftime('%Y-%m-%d')
     df_start.at[df_start.index[-1], 'End Date'] = last_date
     # Map regime numbers to labels
     df_start['Regime'] = df_start['Regime'].map(regime_labels_dict)
@@ -1082,10 +1107,11 @@ def generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_li
     df_tl = df_tl.sort_values(['Start Date', 'Regime', 'Asset'], ascending=[False, True, True]).reset_index(drop=True)
     return df_tl
 
-def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, sp_inflation_data, asset_ts_data):
+def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, sp_inflation_data, asset_ts_data, include_pre_cutoff_trades=False, include_late_assets=False, cutoff_date=None, eligible_assets=None):
     tab.markdown(f"""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>{title}</h2>
     """, unsafe_allow_html=True)
+    # Use the passed include_late_assets argument in filtering logic
     with st.spinner('Merging asset data with regimes...'):
         merged_asset_data = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
     # Compute regime_periods for consistent chart shading and trade log
@@ -1099,6 +1125,13 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     df_start2.at[df_start2.index[-1], 'End'] = df_periods['DateTime'].iloc[-1]
     df_start2['Regime'] = df_start2['Regime'].map(regime_labels_dict)
     regime_periods = df_start2[['Regime', 'Start', 'End']].to_dict(orient='records')
+    # Set xaxis range for normalized asset charts if tab-specific cutoff is used
+    xaxis_range = None
+    from config.constants import asset_list_tab3, asset_list_tab6
+    if asset_list == asset_list_tab3:
+        xaxis_range = ["1994-06-30", None]
+    elif asset_list == asset_list_tab6:
+        xaxis_range = ["1977-03-31", None]
     plot_asset_performance_over_time(
         merged_asset_data,
         asset_list,
@@ -1106,15 +1139,76 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         regime_bg_colors,
         regime_labels_dict,
         title + ' (Normalized to 100 at First Available Date)',
-        regime_periods=regime_periods
+        regime_periods=regime_periods,
+        xaxis_range=xaxis_range
     )
     tab.markdown("""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Trade Log</h2>
     """, unsafe_allow_html=True)
     merged_asset_data_metrics = merged_asset_data.copy()
     trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list, regime_labels_dict)
-    def highlight_regime(row):
-        regime_label = row['Regime']
+    # --- Asset filtering for aggregated metrics/bar charts ---
+    # Compute first available date for each asset
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list if asset in asset_ts_data.columns
+    }
+    print(f"[DEBUG] asset_first_date for tab '{title}':")
+    for asset, date in asset_first_date.items():
+        print(f"    {asset}: {date}")
+    # Use the tab-specific include_late_assets value
+    cutoff_date = st.session_state.get('ma_start_date')
+    from config.constants import asset_list_tab3, asset_list_tab6
+    if asset_list == asset_list_tab3:
+        cutoff_date = datetime.date(1994, 6, 30)
+    elif asset_list == asset_list_tab6:
+        cutoff_date = datetime.date(1977, 3, 31)
+    print(f"[DEBUG] cutoff_date for tab '{title}': {cutoff_date}")
+    print(f"[DEBUG] include_late_assets for tab '{title}': {include_late_assets}")
+    if not include_late_assets:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
+    print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
+    # --- Central eligibility function for trade inclusion ---
+    def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
+        asset = row.get('Asset', None)
+        trade_start_date = row.get('Start Date', None)
+        # Try to parse trade_start_date as date if it's a string
+        if isinstance(trade_start_date, str):
+            try:
+                trade_start_date = pd.to_datetime(trade_start_date).date()
+            except Exception:
+                trade_start_date = None
+        if asset not in eligible_assets:
+            return False
+        if trade_start_date is not None and trade_start_date < cutoff_date and not pre_cutoff_override:
+            return False
+        return True
+
+    # Determine pre_cutoff_override for this tab
+    pre_cutoff_override = include_pre_cutoff_trades
+
+    # --- AGGREGATION: filter trades for metrics/bar charts based on eligibility function ---
+    if 'Asset' in trade_log_df:
+        trade_log_df = trade_log_df[trade_log_df['Asset'].isin(asset_list)].copy()
+    else:
+        trade_log_df = trade_log_df.copy()
+    eligible_mask = trade_log_df.apply(lambda row: is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override), axis=1)
+    filtered_trade_log_df = trade_log_df[eligible_mask].copy()
+
+    # --- Trade log highlighting uses the same function ---
+    def highlight_trade(row):
+        if not is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
+            return ['background-color: #e0e0e0'] * len(row)
+        # Otherwise, use regime background color
+        regime_label = row.get('Regime', None)
         regime_num = None
         for k, v in regime_labels_dict.items():
             if v == regime_label:
@@ -1122,9 +1216,9 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
                 break
         css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
         if css_rgba.startswith('rgba'):
-            m = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
-            if m:
-                r,g,b,_ = m.groups()
+            match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
+            if match:
+                r,g,b,_ = match.groups()
                 from config.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
@@ -1132,6 +1226,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         else:
             color = '#eeeeee'
         return [f'background-color: {color}'] * len(row)
+
     tab.dataframe(
         trade_log_df.style
             .format({
@@ -1142,7 +1237,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
                 'Sharpe Ratio': '{:.2f}',
                 'Max Drawdown': '{:.2%}'
             })
-            .apply(highlight_regime, axis=1),
+            .apply(highlight_trade, axis=1),
         use_container_width=True
     )
     # --- FOOTNOTES for Trade Log ---
@@ -1155,13 +1250,27 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 
 *Volatility and Sharpe ratio cannot be calculated for 1-month periods.*
 """, unsafe_allow_html=True)
+    from config.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
+    if asset_list in [asset_list_tab3, asset_list_tab5, asset_list_tab6]:
+        tab.markdown(
+            '*If the background color is gray, the trade is not included in the aggregations and the bar charts.*',
+            unsafe_allow_html=True
+        )
     tab.markdown("""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
     """, unsafe_allow_html=True)
-    avg_metrics_table = generate_aggregated_metrics(trade_log_df, merged_asset_data_metrics, asset_list, regime_labels_dict)
-    avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown'].reset_index(drop=True)
+    # Show checkbox below metrics title for relevant tabs
+    from config.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
+    if asset_list in [asset_list_tab3, asset_list_tab5, asset_list_tab6]:
+        tab_key = f"include_late_assets_{hashlib.md5(str(asset_list).encode()).hexdigest()}"
+        include_late_assets = st.session_state.get(tab_key, False)
+    # Use eligible_assets for aggregated metrics and bar charts
+    avg_metrics_table = generate_aggregated_metrics(filtered_trade_log_df, merged_asset_data_metrics, eligible_assets, regime_labels_dict)
+    avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown']
+    avg_metrics_table = avg_metrics_table[avg_metrics_table['Asset'].isin(eligible_assets)]
+    avg_metrics_table = avg_metrics_table.reset_index(drop=True)
     regime_order = [regime_labels_dict[k] for k in [2,1,4,3]]
-    asset_order = asset_list
+    asset_order = eligible_assets
     avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
     avg_metrics_table['Asset'] = pd.Categorical(avg_metrics_table['Asset'], categories=asset_order, ordered=True)
     avg_metrics_table = avg_metrics_table.sort_values(['Regime','Asset']).reset_index(drop=True)
@@ -1176,7 +1285,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         if css_rgba.startswith('rgba'):
             match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
             if match:
-                r, g, b, _ = match.groups()
+                r,g,b,_ = match.groups()
                 from config.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
@@ -1203,8 +1312,11 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 - **Sharpe Ratio (Aggregated):** Aggregated annual return divided by aggregated annual volatility (0% risk-free rate).
 - **Average Max Drawdown:** Mean of the maximum drawdowns observed in each period for each regime-asset group.
 - **Missing Data Handling:** Excludes any missing (NaN) values from all calculations.
+
+
+
 """, unsafe_allow_html=True)
-    plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict)
+    plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, asset_list=asset_list)
 
 # Tab 2: Asset Classes (Refactored)
 with tabs[1]:
@@ -1219,9 +1331,93 @@ with tabs[1]:
         asset_ts_data
     )
 
+# Tab 6: Factor Investing
+with tabs[5]:
+    min_assets_required = 5
+    # Generate trade log for current MA and asset list
+    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab6, regime_labels_dict)
+    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
+    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
+    # Pre-cutoff checkbox (now appears first)
+    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
+    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_factor_{hashlib.md5(str(asset_list_tab6).encode()).hexdigest()}"
+    include_pre_cutoff_trades = st.checkbox(
+        checkbox_label,
+        value=st.session_state.get(pre_cutoff_checkbox_key, False),
+        key=pre_cutoff_checkbox_key
+    )
+    tab_key = f"include_late_assets_factor_{hashlib.md5(str(asset_list_tab6).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(tab_key, False),
+        key=tab_key
+    )
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab6 if asset in asset_ts_data.columns
+    }
+    if not include_late_assets:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        eligible_assets = [a for a in asset_list_tab6 if a in asset_ts_data.columns]
+    render_asset_analysis_tab(
+        tabs[5],
+        "Performance of MSCI World Factor Strategies Across Regimes",
+        asset_list_tab6,
+        asset_colors,
+        regime_bg_colors,
+        regime_labels_dict,
+        sp_inflation_data,
+        asset_ts_data,
+        include_pre_cutoff_trades=include_pre_cutoff_trades,
+        include_late_assets=include_late_assets,
+        cutoff_date=cutoff_date,
+        eligible_assets=eligible_assets
+    )
+
 # Tab 3: Large vs. Small Cap
-tabs[2].title = "Large vs. Small Cap"
 with tabs[2]:
+    min_assets_required = 3
+    # Generate trade log for current MA and asset list
+    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab3, regime_labels_dict)
+    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
+    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
+    # Pre-cutoff checkbox (now appears first)
+    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
+    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_cap_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
+    include_pre_cutoff_trades = st.checkbox(
+        checkbox_label,
+        value=st.session_state.get(pre_cutoff_checkbox_key, False),
+        key=pre_cutoff_checkbox_key
+    )
+    tab_key = f"include_late_assets_cap_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(tab_key, False),
+        key=tab_key
+    )
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab3 if asset in asset_ts_data.columns
+    }
+    if not include_late_assets:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        eligible_assets = [a for a in asset_list_tab3 if a in asset_ts_data.columns]
     render_asset_analysis_tab(
         tabs[2],
         "Performance of Large, Mid, Small, and Micro Cap Stocks Across Regimes",
@@ -1230,15 +1426,30 @@ with tabs[2]:
         regime_bg_colors,
         regime_labels_dict,
         sp_inflation_data,
-        asset_ts_data
+        asset_ts_data,
+        include_pre_cutoff_trades=include_pre_cutoff_trades,
+        include_late_assets=include_late_assets,
+        cutoff_date=cutoff_date,
+        eligible_assets=eligible_assets
     )
 
+def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, asset_list=None):
+    metrics_to_display = ['Annualized Return (Aggregated)', 'Annualized Volatility (Aggregated)', 'Sharpe Ratio (Aggregated)', 'Average Max Drawdown (Period Avg)']
+    st.markdown("""
+    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Bar Charts of Performance Metrics</h2>
+    """, unsafe_allow_html=True)
+    for metric in metrics_to_display:
+        fig3 = go.Figure()
+        unique_regimes = avg_metrics_table['Regime'].cat.categories
+        regime_x = list(unique_regimes)
+        ...
+        st.plotly_chart(fig3, use_container_width=False, key=f"bar_chart_{metric}_{id(fig3)}")
+
 # Tab 4: Cyclical vs. Defensive
-tabs[3].title = "Cyclical vs. Defensive"
 with tabs[3]:
     render_asset_analysis_tab(
         tabs[3],
-        "Performance of MSCI USA Cyclical vs. Defensive Stocks Across Regimes",
+        "Cyclical vs. Defensive Stocks Across Regimes",
         asset_list_tab4,
         asset_colors,
         regime_bg_colors,
@@ -1248,8 +1459,30 @@ with tabs[3]:
     )
 
 # Tab 5: US Sectors
-tabs[4].title = "US Sectors"
 with tabs[4]:
+    # Only show the second checkbox (late assets) for Sectors tab (tab 5)
+    tab_key = f"include_late_assets_sectors_{hashlib.md5(str(asset_list_tab5).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(tab_key, False),
+        key=tab_key
+    )
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab5 if asset in asset_ts_data.columns
+    }
+    # All 9 traces have the same start date, so this logic is simple
+    cutoff_date = min(asset_first_date.values()) if asset_first_date else None
+    if not include_late_assets and cutoff_date is not None:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        eligible_assets = [a for a in asset_list_tab5 if a in asset_ts_data.columns]
     render_asset_analysis_tab(
         tabs[4],
         "Performance of US Sector ETFs Across Regimes",
@@ -1258,19 +1491,8 @@ with tabs[4]:
         regime_bg_colors,
         regime_labels_dict,
         sp_inflation_data,
-        asset_ts_data
-    )
-
-# Tab 6: Factor Investing
-tabs[5].title = "Factor Investing"
-with tabs[5]:
-    render_asset_analysis_tab(
-        tabs[5],
-        "Performance of MSCI World Factor Strategies Across Regimes",
-        asset_list_tab6,
-        asset_colors,
-        regime_bg_colors,
-        regime_labels_dict,
-        sp_inflation_data,
-        asset_ts_data
+        asset_ts_data,
+        include_late_assets=include_late_assets,
+        cutoff_date=cutoff_date,
+        eligible_assets=eligible_assets
     )
