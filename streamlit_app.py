@@ -17,6 +17,198 @@ from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
 from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, regime_definitions, REGIME_BG_ALPHA
 
+# --- Helper Function for Tab 6 Setup ---
+def setup_tab6_logic(asset_ts_data, sp_inflation_data, asset_list_tab6, regime_labels_dict):
+    """Handles the specific logic for setting up Tab 6 (Factor Investing)."""
+    min_assets_required = 5
+
+    # Generate trade log (needed for dynamic cutoff)
+    # TODO: Consider caching this merge/generation if performance becomes an issue
+    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab6, regime_labels_dict)
+
+    # Calculate dynamic cutoff date
+    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
+    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
+
+    # --- Widgets ---
+    # Pre-cutoff checkbox
+    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
+    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_factor_{hashlib.md5(str(asset_list_tab6).encode()).hexdigest()}"
+    include_pre_cutoff_trades = st.checkbox(
+        checkbox_label,
+        value=st.session_state.get(pre_cutoff_checkbox_key, False),
+        key=pre_cutoff_checkbox_key
+    )
+
+    # Late assets checkbox
+    late_assets_key = f"include_late_assets_factor_{hashlib.md5(str(asset_list_tab6).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(late_assets_key, False),
+        key=late_assets_key
+    )
+
+    # --- Calculate Eligible Assets ---
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab6 if asset in asset_ts_data.columns
+    }
+
+    if not include_late_assets:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        # Fallback if no assets meet the cutoff
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = [] # Should not happen if asset_list_tab6 is valid
+    else:
+        eligible_assets = [a for a in asset_list_tab6 if a in asset_ts_data.columns]
+
+    return {
+        "include_pre_cutoff_trades": include_pre_cutoff_trades,
+        "include_late_assets": include_late_assets,
+        "cutoff_date": cutoff_date,
+        "eligible_assets": eligible_assets
+    }
+
+# --- Helper Function for Tab 5 Setup ---
+def setup_tab5_logic(asset_ts_data, asset_list_tab5):
+    """Handles the specific logic for setting up Tab 5 (US Sectors)."""
+    # Widgets
+    late_assets_key = f"include_late_assets_sectors_{hashlib.md5(str(asset_list_tab5).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(late_assets_key, False),
+        key=late_assets_key,
+        help="If checked, includes assets that start later than the earliest asset in the list. If unchecked, only assets present from the very beginning are included."
+    )
+
+    # Calculate Eligible Assets (based on checkbox)
+    # Tab 5 uses the MA start date as the implicit cutoff if 'include_late_assets' is false
+    cutoff_date = st.session_state.get('ma_start_date')
+
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab5 if asset in asset_ts_data.columns
+    }
+
+    if not include_late_assets and cutoff_date is not None:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        # Fallback if no assets meet the cutoff
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        # If include_late_assets is True, or cutoff_date is None, include all available assets
+        eligible_assets = [a for a in asset_list_tab5 if a in asset_ts_data.columns]
+
+    return {
+        "include_late_assets": include_late_assets,
+        "eligible_assets": eligible_assets,
+        "cutoff_date": cutoff_date # Pass the implicit cutoff date used
+    }
+
+# --- Helper Function for Tab 4 Setup ---
+def setup_tab4_logic(asset_ts_data, asset_list_tab4):
+    """Handles the specific logic for setting up Tab 4 (Cyclical vs Defensive)."""
+    # Widgets
+    late_assets_key = f"include_late_assets_cyclical_{hashlib.md5(str(asset_list_tab4).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(late_assets_key, False),
+        key=late_assets_key,
+        help="If checked, includes assets that start later than the earliest asset in the list. If unchecked, only assets present from the very beginning are included."
+    )
+
+    # Calculate Eligible Assets
+    cutoff_date = st.session_state.get('ma_start_date')
+
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab4 if asset in asset_ts_data.columns
+    }
+
+    if not include_late_assets and cutoff_date is not None:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        # Fallback
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        eligible_assets = [a for a in asset_list_tab4 if a in asset_ts_data.columns]
+
+    return {
+        "include_late_assets": include_late_assets,
+        "eligible_assets": eligible_assets,
+        "cutoff_date": cutoff_date
+    }
+
+# --- Helper Function for Tab 3 Setup ---
+def setup_tab3_logic(asset_ts_data, sp_inflation_data, asset_list_tab3, regime_labels_dict):
+    """Handles the specific logic for setting up Tab 3 (Large vs Small Cap)."""
+    min_assets_required = 3 # Specific to Tab 3
+
+    # Generate trade log (needed for dynamic cutoff)
+    # TODO: Cache this
+    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab3, regime_labels_dict)
+
+    # Calculate dynamic cutoff date
+    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
+    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
+
+    # --- Widgets ---
+    # Pre-cutoff checkbox
+    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
+    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_large_small_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
+    include_pre_cutoff_trades = st.checkbox(
+        checkbox_label,
+        value=st.session_state.get(pre_cutoff_checkbox_key, False),
+        key=pre_cutoff_checkbox_key
+    )
+
+    # Late assets checkbox
+    late_assets_key = f"include_late_assets_large_small_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
+    include_late_assets = st.checkbox(
+        "also include assets with later start dates in aggregations and bar charts.",
+        value=st.session_state.get(late_assets_key, False),
+        key=late_assets_key
+    )
+
+    # --- Calculate Eligible Assets ---
+    asset_first_date = {
+        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+        for asset in asset_list_tab3 if asset in asset_ts_data.columns
+    }
+
+    if not include_late_assets:
+        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+        # Fallback
+        if not eligible_assets:
+            if asset_first_date:
+                min_date = min(asset_first_date.values())
+                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
+            else:
+                eligible_assets = []
+    else:
+        eligible_assets = [a for a in asset_list_tab3 if a in asset_ts_data.columns]
+
+    return {
+        "include_pre_cutoff_trades": include_pre_cutoff_trades,
+        "include_late_assets": include_late_assets,
+        "cutoff_date": cutoff_date,
+        "eligible_assets": eligible_assets
+    }
+
 # Set page configuration
 st.set_page_config(
     page_title="Macroeconomic Regimes and Asset Performance",
@@ -1191,6 +1383,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
                 eligible_assets = []
     else:
         eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
+
     print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
 
     # --- Central eligibility function for trade inclusion ---
@@ -1354,40 +1547,7 @@ with tabs[1]:
 
 # Tab 6: Factor Investing
 with tabs[5]:
-    min_assets_required = 5
-    # Generate trade log for current MA and asset list
-    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
-    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab6, regime_labels_dict)
-    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
-    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
-    # Pre-cutoff checkbox (now appears first)
-    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
-    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_factor_{hashlib.md5(str(asset_list_tab6).encode()).hexdigest()}"
-    include_pre_cutoff_trades = st.checkbox(
-        checkbox_label,
-        value=st.session_state.get(pre_cutoff_checkbox_key, False),
-        key=pre_cutoff_checkbox_key
-    )
-    tab_key = f"include_late_assets_factor_{hashlib.md5(str(asset_list_tab6).encode()).hexdigest()}"
-    include_late_assets = st.checkbox(
-        "also include assets with later start dates in aggregations and bar charts.",
-        value=st.session_state.get(tab_key, False),
-        key=tab_key
-    )
-    asset_first_date = {
-        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
-        for asset in asset_list_tab6 if asset in asset_ts_data.columns
-    }
-    if not include_late_assets:
-        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
-        if not eligible_assets:
-            if asset_first_date:
-                min_date = min(asset_first_date.values())
-                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
-            else:
-                eligible_assets = []
-    else:
-        eligible_assets = [a for a in asset_list_tab6 if a in asset_ts_data.columns]
+    tab6_setup = setup_tab6_logic(asset_ts_data, sp_inflation_data, asset_list_tab6, regime_labels_dict)
     render_asset_analysis_tab(
         tabs[5],
         "Performance of MSCI World Factor Strategies Across Regimes",
@@ -1397,104 +1557,54 @@ with tabs[5]:
         regime_labels_dict,
         sp_inflation_data,
         asset_ts_data,
-        include_pre_cutoff_trades=include_pre_cutoff_trades,
-        include_late_assets=include_late_assets,
-        cutoff_date=cutoff_date,
-        eligible_assets=eligible_assets,
+        include_pre_cutoff_trades=tab6_setup["include_pre_cutoff_trades"],
+        include_late_assets=tab6_setup["include_late_assets"],
+        cutoff_date=tab6_setup["cutoff_date"],
+        eligible_assets=tab6_setup["eligible_assets"],
         tab_title="Factor Investing"
     )
 
 # Tab 3: Large vs. Small Cap
 with tabs[2]:
-    min_assets_required = 3
-    # Generate trade log for current MA and asset list
-    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
-    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab3, regime_labels_dict)
-    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
-    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
-    # Pre-cutoff checkbox (now appears first)
-    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
-    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_cap_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
-    include_pre_cutoff_trades = st.checkbox(
-        checkbox_label,
-        value=st.session_state.get(pre_cutoff_checkbox_key, False),
-        key=pre_cutoff_checkbox_key
-    )
-    tab_key = f"include_late_assets_cap_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
-    include_late_assets = st.checkbox(
-        "also include assets with later start dates in aggregations and bar charts.",
-        value=st.session_state.get(tab_key, False),
-        key=tab_key
-    )
-    asset_first_date = {
-        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
-        for asset in asset_list_tab3 if asset in asset_ts_data.columns
-    }
-    if not include_late_assets:
-        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
-        if not eligible_assets:
-            if asset_first_date:
-                min_date = min(asset_first_date.values())
-                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
-            else:
-                eligible_assets = []
-    else:
-        eligible_assets = [a for a in asset_list_tab3 if a in asset_ts_data.columns]
+    tab3_setup = setup_tab3_logic(asset_ts_data, sp_inflation_data, asset_list_tab3, regime_labels_dict)
+
     render_asset_analysis_tab(
         tabs[2],
-        "Performance of Large, Mid, Small, and Micro Cap Stocks Across Regimes",
+        "Performance of Large vs. Small Cap Stocks Across Regimes",
         asset_list_tab3,
         asset_colors,
         regime_bg_colors,
         regime_labels_dict,
         sp_inflation_data,
         asset_ts_data,
-        include_pre_cutoff_trades=include_pre_cutoff_trades,
-        include_late_assets=include_late_assets,
-        cutoff_date=cutoff_date,
-        eligible_assets=eligible_assets,
-        tab_title="Large vs. Small Cap"
+        include_pre_cutoff_trades=tab3_setup["include_pre_cutoff_trades"],
+        include_late_assets=tab3_setup["include_late_assets"],
+        cutoff_date=tab3_setup["cutoff_date"],
+        eligible_assets=tab3_setup["eligible_assets"],
+        tab_title="Large vs Small Cap"
     )
 
 # Tab 4: Cyclical vs. Defensive
 with tabs[3]:
+    tab4_setup = setup_tab4_logic(asset_ts_data, asset_list_tab4)
     render_asset_analysis_tab(
         tabs[3],
-        "Cyclical vs. Defensive Stocks Across Regimes",
+        "Performance of Cyclical vs. Defensive Stocks Across Regimes",
         asset_list_tab4,
         asset_colors,
         regime_bg_colors,
         regime_labels_dict,
         sp_inflation_data,
         asset_ts_data,
-        "Cyclical vs. Defensive"
+        include_late_assets=tab4_setup["include_late_assets"],
+        eligible_assets=tab4_setup["eligible_assets"],
+        cutoff_date=tab4_setup["cutoff_date"],
+        tab_title="Cyclical vs Defensive"
     )
 
 # Tab 5: US Sectors
 with tabs[4]:
-    # Only show the second checkbox (late assets) for Sectors tab (tab 5)
-    tab_key = f"include_late_assets_sectors_{hashlib.md5(str(asset_list_tab5).encode()).hexdigest()}"
-    include_late_assets = st.checkbox(
-        "also include assets with later start dates in aggregations and bar charts.",
-        value=st.session_state.get(tab_key, False),
-        key=tab_key
-    )
-    asset_first_date = {
-        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
-        for asset in asset_list_tab5 if asset in asset_ts_data.columns
-    }
-    # All 9 traces have the same start date, so this logic is simple
-    cutoff_date = min(asset_first_date.values()) if asset_first_date else None
-    if not include_late_assets and cutoff_date is not None:
-        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
-        if not eligible_assets:
-            if asset_first_date:
-                min_date = min(asset_first_date.values())
-                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
-            else:
-                eligible_assets = []
-    else:
-        eligible_assets = [a for a in asset_list_tab5 if a in asset_ts_data.columns]
+    tab5_setup = setup_tab5_logic(asset_ts_data, asset_list_tab5)
     render_asset_analysis_tab(
         tabs[4],
         "Performance of US Sector ETFs Across Regimes",
@@ -1504,7 +1614,8 @@ with tabs[4]:
         regime_labels_dict,
         sp_inflation_data,
         asset_ts_data,
-        include_late_assets=include_late_assets,
-        eligible_assets=eligible_assets,
+        include_late_assets=tab5_setup["include_late_assets"],
+        eligible_assets=tab5_setup["eligible_assets"],
+        cutoff_date=tab5_setup["cutoff_date"],
         tab_title="US Sectors"
     )
