@@ -17,6 +17,13 @@ from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
 from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, regime_definitions, REGIME_BG_ALPHA
 
+# Set page configuration
+st.set_page_config(
+    page_title="Macroeconomic Regimes and Asset Performance",
+    layout="wide",
+    page_icon="https://www.longtermtrends.net/static/my_app/images/favicon.ico"
+)
+
 # --- Add meta tags for SEO and social sharing ---
 meta_title = "Macroeconomic Regimes and Asset Performance Analysis | Longtermtrends"
 meta_description = ("This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate data, and analyzes asset performance across these regimes.")
