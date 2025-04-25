@@ -1114,7 +1114,7 @@ def generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_li
     df_tl = df_tl.sort_values(['Start Date', 'Regime', 'Asset'], ascending=[False, True, True]).reset_index(drop=True)
     return df_tl
 
-def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, sp_inflation_data, asset_ts_data, include_pre_cutoff_trades=False, include_late_assets=False, cutoff_date=None, eligible_assets=None):
+def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, sp_inflation_data, asset_ts_data, include_pre_cutoff_trades=False, include_late_assets=False, cutoff_date=None, eligible_assets=None, tab_title=""):
     tab.markdown(f"""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>{title}</h2>
     """, unsafe_allow_html=True)
@@ -1257,60 +1257,33 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 
 *Volatility and Sharpe ratio cannot be calculated for 1-month periods.*
 """, unsafe_allow_html=True)
+
+    # Keep conditional footnote from upstream
     from config.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
     if asset_list in [asset_list_tab3, asset_list_tab5, asset_list_tab6]:
         tab.markdown(
             '*If the background color is gray, the trade is not included in the aggregations and the bar charts.*',
             unsafe_allow_html=True
         )
+
+    # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
     tab.markdown("""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
     """, unsafe_allow_html=True)
-    # Show checkbox below metrics title for relevant tabs
-    from config.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
-    if asset_list in [asset_list_tab3, asset_list_tab5, asset_list_tab6]:
-        tab_key = f"include_late_assets_{hashlib.md5(str(asset_list).encode()).hexdigest()}"
-        include_late_assets = st.session_state.get(tab_key, False)
-    # Use eligible_assets for aggregated metrics and bar charts
+
+    # Use eligible_assets for aggregated metrics and bar charts (from upstream)
     avg_metrics_table = generate_aggregated_metrics(filtered_trade_log_df, merged_asset_data_metrics, eligible_assets, regime_labels_dict)
     avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown']
     avg_metrics_table = avg_metrics_table[avg_metrics_table['Asset'].isin(eligible_assets)]
     avg_metrics_table = avg_metrics_table.reset_index(drop=True)
     regime_order = [regime_labels_dict[k] for k in [2,1,4,3]]
-    asset_order = eligible_assets
+    asset_order = eligible_assets # Use eligible assets for ordering
+
+    # Keep common formatting/ordering logic
     avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
     avg_metrics_table['Asset'] = pd.Categorical(avg_metrics_table['Asset'], categories=asset_order, ordered=True)
     avg_metrics_table = avg_metrics_table.sort_values(['Regime','Asset']).reset_index(drop=True)
-    def highlight_regime_avg(row):
-        regime_label = row['Regime']
-        regime_num = None
-        for k, v in regime_labels_dict.items():
-            if v == regime_label:
-                regime_num = k
-                break
-        css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
-        if css_rgba.startswith('rgba'):
-            match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
-            if match:
-                r,g,b,_ = match.groups()
-                from config.constants import REGIME_BG_ALPHA
-                color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
-            else:
-                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})"
-        else:
-            color = '#eeeeee'
-        return [f'background-color: {color}'] * len(row)
-    tab.dataframe(
-        avg_metrics_table.style
-            .format({
-                'Annualized Return (Aggregated)': '{:.2%}',
-                'Annualized Volatility (Aggregated)': '{:.2%}',
-                'Sharpe Ratio (Aggregated)': '{:.2f}',
-                'Average Max Drawdown (Period Avg)': '{:.2%}'
-            })
-            .apply(highlight_regime_avg, axis=1),
-        use_container_width=True
-    )
+
     # --- FOOTNOTES for Aggregated Performance Table ---
     tab.markdown("""
 **Aggregation & Calculation Notes:**
@@ -1323,7 +1296,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 
 
 """, unsafe_allow_html=True)
-    plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, asset_list=asset_list)
+    plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
 
 # Tab 2: Asset Classes (Refactored)
 with tabs[1]:
@@ -1335,7 +1308,8 @@ with tabs[1]:
         regime_bg_colors,
         regime_labels_dict,
         sp_inflation_data,
-        asset_ts_data
+        asset_ts_data,
+        "Asset Classes"
     )
 
 # Tab 6: Factor Investing
@@ -1386,7 +1360,8 @@ with tabs[5]:
         include_pre_cutoff_trades=include_pre_cutoff_trades,
         include_late_assets=include_late_assets,
         cutoff_date=cutoff_date,
-        eligible_assets=eligible_assets
+        eligible_assets=eligible_assets,
+        tab_title="Factor Investing"
     )
 
 # Tab 3: Large vs. Small Cap
@@ -1437,20 +1412,9 @@ with tabs[2]:
         include_pre_cutoff_trades=include_pre_cutoff_trades,
         include_late_assets=include_late_assets,
         cutoff_date=cutoff_date,
-        eligible_assets=eligible_assets
+        eligible_assets=eligible_assets,
+        tab_title="Large vs. Small Cap"
     )
-
-def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, asset_list=None):
-    metrics_to_display = ['Annualized Return (Aggregated)', 'Annualized Volatility (Aggregated)', 'Sharpe Ratio (Aggregated)', 'Average Max Drawdown (Period Avg)']
-    st.markdown("""
-    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Bar Charts of Performance Metrics</h2>
-    """, unsafe_allow_html=True)
-    for metric in metrics_to_display:
-        fig3 = go.Figure()
-        unique_regimes = avg_metrics_table['Regime'].cat.categories
-        regime_x = list(unique_regimes)
-        ...
-        st.plotly_chart(fig3, use_container_width=False, key=f"bar_chart_{metric}_{id(fig3)}")
 
 # Tab 4: Cyclical vs. Defensive
 with tabs[3]:
@@ -1462,7 +1426,8 @@ with tabs[3]:
         regime_bg_colors,
         regime_labels_dict,
         sp_inflation_data,
-        asset_ts_data
+        asset_ts_data,
+        "Cyclical vs. Defensive"
     )
 
 # Tab 5: US Sectors
@@ -1500,6 +1465,6 @@ with tabs[4]:
         sp_inflation_data,
         asset_ts_data,
         include_late_assets=include_late_assets,
-        cutoff_date=cutoff_date,
-        eligible_assets=eligible_assets
+        eligible_assets=eligible_assets,
+        tab_title="US Sectors"
     )
