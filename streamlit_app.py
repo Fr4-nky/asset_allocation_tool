@@ -1386,150 +1386,98 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 
     print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
 
-    # --- Central eligibility function for trade inclusion ---
-    def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
+    # --- Eligibility Helper Function ---
+    def _check_trade_eligibility(row, eligible_assets, cutoff_date, include_pre_cutoff_trades):
+        """Checks if a single trade row is eligible based on filters."""
         asset = row.get('Asset', None)
-        trade_start_date = row.get('Start Date', None)
-        # Try to parse trade_start_date as date if it's a string
-        if isinstance(trade_start_date, str):
-            try:
-                trade_start_date = pd.to_datetime(trade_start_date).date()
-            except Exception:
-                trade_start_date = None
-        if asset not in eligible_assets:
-            return False
-        if trade_start_date is not None and trade_start_date < cutoff_date and not pre_cutoff_override:
-            return False
-        return True
+        trade_date = pd.to_datetime(row.get('Date', None)).date() if pd.notna(row.get('Date', None)) else None
 
-    # Determine pre_cutoff_override for this tab
-    pre_cutoff_override = include_pre_cutoff_trades
+        if asset is None or trade_date is None:
+            return False # Cannot determine eligibility
 
-    # --- AGGREGATION: filter trades for metrics/bar charts based on eligibility function ---
-    if 'Asset' in trade_log_df:
-        trade_log_df = trade_log_df[trade_log_df['Asset'].isin(asset_list)].copy()
+        # Condition 1: Asset must be in the currently eligible list
+        asset_is_eligible = asset in eligible_assets
+
+        # Condition 2: Trade date must be on or after the cutoff date, *unless* pre-cutoff trades are included
+        date_is_eligible = True # Assume eligible by default
+        if not include_pre_cutoff_trades and cutoff_date is not None:
+            date_is_eligible = trade_date >= cutoff_date
+
+        return asset_is_eligible and date_is_eligible
+
+    # --- Display Trade Log ---
+    _display_trade_log(tab, trade_log_df, eligible_assets, cutoff_date, include_pre_cutoff_trades, asset_colors, regime_bg_colors)
+
+    # --- Generate Aggregated Metrics ---
+    # Filter trade log for eligible trades BEFORE aggregation
+    eligible_trade_log = trade_log_df[trade_log_df.apply(lambda row: _check_trade_eligibility(row, eligible_assets, cutoff_date, include_pre_cutoff_trades), axis=1)].copy()
+
+    if not eligible_trade_log.empty:
+        # Aggregation
+        avg_metrics_table = generate_aggregated_metrics(eligible_trade_log, regime_labels_dict)
+        # print("\n[DEBUG] avg_metrics_table for tab:", title)
+        # print(avg_metrics_table.head())
+        # print("Avg Metrics Table Index:", avg_metrics_table.index)
+        # print("Avg Metrics Table Columns:", avg_metrics_table.columns)
+        # print("Avg Metrics Table Regimes:", avg_metrics_table['Regime'].unique() if 'Regime' in avg_metrics_table.columns else 'No Regime Column')
+        # print("Avg Metrics Table Assets:", avg_metrics_table['Asset'].unique() if 'Asset' in avg_metrics_table.columns else 'No Asset Column')
+
+        # --- Display Aggregated Metrics Table ---
+        _display_aggregated_metrics(tab, avg_metrics_table, regime_labels_dict, regime_bg_colors)
+
+        # --- Generate and Display Bar Charts ---
+        plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title=tab_title)
+
     else:
-        trade_log_df = trade_log_df.copy()
-    eligible_mask = trade_log_df.apply(lambda row: is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override), axis=1)
-    filtered_trade_log_df = trade_log_df[eligible_mask].copy()
+        tab.write("No eligible trades found for aggregation based on current filters.")
+        # Ensure avg_metrics_table exists but is empty if no eligible trades
+        avg_metrics_table = pd.DataFrame()
 
-    # --- Trade log highlighting uses the same function ---
-    def highlight_trade(row):
-        if not is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
-            return ['background-color: #e0e0e0'] * len(row)
-        # Otherwise, use regime background color
-        regime_label = row.get('Regime', None)
-        regime_num = None
-        for k, v in regime_labels_dict.items():
-            if v == regime_label:
-                regime_num = k
-                break
-        css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
-        if css_rgba.startswith('rgba'):
-            match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
-            if match:
-                r,g,b,_ = match.groups()
-                from config.constants import REGIME_BG_ALPHA
-                color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
-            else:
-                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
-        else:
-            color = '#eeeeee'
-        return [f'background-color: {color}'] * len(row)
+def _display_aggregated_metrics(tab, avg_metrics_table, regime_labels_dict, regime_bg_colors):
+    """Displays the styled aggregated metrics DataFrame in the given Streamlit tab."""
+    if avg_metrics_table.empty:
+        # Handled by the caller (render_asset_analysis_tab writes a message)
+        return
 
-    tab.dataframe(
-        trade_log_df.style
-            .format({
-                'Start Price': '{:.2f}',
-                'End Price': '{:.2f}',
-                'Period Return': '{:.2%}',
-                'Volatility': '{:.2%}',
-                'Sharpe Ratio': '{:.2f}',
-                'Max Drawdown': '{:.2%}'
-            })
-            .apply(highlight_trade, axis=1),
-        use_container_width=True
-    )
-    # --- FOOTNOTES for Trade Log ---
-    tab.markdown("""
-**Column Definitions:**
-- **Period Return**: (End Price - Start Price) / Start Price
-- **Volatility**: Standard deviation of monthly returns within the period, annualized (multiplied by $\sqrt{12}$)
-- **Sharpe Ratio**: Annualized mean monthly return divided by annualized volatility, assuming risk-free rate = 0
-- **Max Drawdown**: Maximum observed loss from a peak to a trough during the period, based on monthly closing prices (as a percentage of the peak)
+    tab.markdown("#### Aggregated Performance Metrics by Regime")
+    # Assumes highlight_regime_avg is defined globally
+    tab.dataframe(avg_metrics_table.style.apply(highlight_regime_avg, axis=1, regime_labels_dict=regime_labels_dict, regime_bg_colors=regime_bg_colors))
 
-*Volatility and Sharpe ratio cannot be calculated for 1-month periods.*
-""", unsafe_allow_html=True)
+def _display_trade_log(tab, trade_log_df, eligible_assets, cutoff_date, include_pre_cutoff_trades, asset_colors, regime_bg_colors):
+    """Displays the styled trade log DataFrame in the given Streamlit tab."""
+    if trade_log_df.empty:
+        tab.write("No trades generated based on current filters.")
+        return
 
-    # Keep conditional footnote from upstream
-    from config.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
-    if asset_list in [asset_list_tab3, asset_list_tab5, asset_list_tab6]:
-        tab.markdown(
-            '*If the background color is gray, the trade is not included in the aggregations and the bar charts.*',
-            unsafe_allow_html=True
-        )
+    def highlight_trades(row):
+        # Determine eligibility using the standalone helper function
+        eligible = _check_trade_eligibility(row, eligible_assets, cutoff_date, include_pre_cutoff_trades)
+        # Get the original regime color
+        regime = row['Regime']
+        base_color = regime_bg_colors.get(regime, '#FFFFFF') # Default white
+        # Convert hex to RGB and apply alpha
+        rgb_color = mcolors.hex2color(base_color)
+        # Apply alpha to the base color
+        final_color = f'rgba({int(rgb_color[0]*255)}, {int(rgb_color[1]*255)}, {int(rgb_color[2]*255)}, {REGIME_BG_ALPHA})'
 
-    # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
-    tab.markdown("""
-    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
-    """, unsafe_allow_html=True)
+        # Default style
+        style = [''] * len(row)
+        # Apply grey background if not eligible, otherwise the regime color
+        bg_color = '#DDDDDD' if not eligible else final_color # Grey out ineligible trades
+        style = [f'background-color: {bg_color}' for _ in row]
 
-    # Use eligible_assets for aggregated metrics and bar charts (from upstream)
-    avg_metrics_table = generate_aggregated_metrics(filtered_trade_log_df, merged_asset_data_metrics, eligible_assets, regime_labels_dict)
-    avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown']
-    avg_metrics_table = avg_metrics_table[avg_metrics_table['Asset'].isin(eligible_assets)]
-    avg_metrics_table = avg_metrics_table.reset_index(drop=True)
-    regime_order = [regime_labels_dict[k] for k in [2,1,4,3]]
-    asset_order = eligible_assets # Use eligible assets for ordering
+        # Highlight Asset cell with its specific color
+        asset_color = asset_colors.get(row['Asset'], '#FFFFFF') # Default white
+        asset_index = row.index.get_loc('Asset')
+        style[asset_index] += f'; color: {asset_color}; font-weight: bold;' # Use asset color for text
 
-    # Keep common formatting/ordering logic
-    avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
-    avg_metrics_table['Asset'] = pd.Categorical(avg_metrics_table['Asset'], categories=asset_order, ordered=True)
-    avg_metrics_table = avg_metrics_table.sort_values(['Regime','Asset']).reset_index(drop=True)
+        return style
 
-    # Display the formatted table
-    def highlight_regime_avg(row):
-        regime_label = row['Regime']
-        regime_num = next((k for k, v in regime_labels_dict.items() if v == regime_label), None)
-        css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
-        # Use REGIME_BG_ALPHA for consistent background intensity
-        if css_rgba.startswith('rgba'):
-            match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
-            if match:
-                r,g,b,_ = match.groups()
-                from config.constants import REGIME_BG_ALPHA
-                color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
-            else:
-                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
-        else:
-            color = '#eeeeee'
-        return [f'background-color: {color}'] * len(row)
+    # Apply the highlighter
+    styled_trade_log = trade_log_df.style.apply(highlight_trades, axis=1)
 
-    tab.dataframe(
-        avg_metrics_table.style
-            .format({
-                'Annualized Return (Aggregated)': '{:.2%}',
-                'Annualized Volatility (Aggregated)': '{:.2%}',
-                'Sharpe Ratio (Aggregated)': '{:.2f}',
-                'Average Max Drawdown (Period Avg)': '{:.2%}'
-            })
-            .apply(highlight_regime_avg, axis=1),
-        use_container_width=True
-    )
-
-    # --- FOOTNOTES for Aggregated Performance Table ---
-    tab.markdown("""
-**Aggregation & Calculation Notes:**
-- **Annualized Return (Aggregated):** Average of monthly returns for each regime-asset group, annualized by multiplying by 12.
-- **Annualized Volatility (Aggregated):** Standard deviation of those monthly returns, annualized by multiplying by √12.
-- **Sharpe Ratio (Aggregated):** Aggregated annual return divided by aggregated annual volatility (0% risk-free rate).
-- **Average Max Drawdown:** Mean of the maximum drawdowns observed in each period for each regime-asset group.
-- **Missing Data Handling:** Excludes any missing (NaN) values from all calculations.
-
-
-
-""", unsafe_allow_html=True)
-    plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
+    # Display the styled DataFrame
+    tab.dataframe(styled_trade_log)
 
 # Tab 2: Asset Classes (Refactored)
 with tabs[1]:
