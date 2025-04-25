@@ -1164,15 +1164,24 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     for asset, date in asset_first_date.items():
         print(f"    {asset}: {date}")
     # Use the tab-specific include_late_assets value
-    cutoff_date = st.session_state.get('ma_start_date')
-    from config.constants import asset_list_tab3, asset_list_tab6
-    if asset_list == asset_list_tab3:
-        cutoff_date = datetime.date(1994, 6, 30)
-    elif asset_list == asset_list_tab6:
-        cutoff_date = datetime.date(1977, 3, 31)
-    print(f"[DEBUG] cutoff_date for tab '{title}': {cutoff_date}")
+    passed_cutoff_date = cutoff_date # Rename argument to avoid confusion
+    from config.constants import asset_list_tab3 # Remove asset_list_tab6 import here
+
+    if passed_cutoff_date is not None:
+        cutoff_date = passed_cutoff_date # Use the date calculated externally and passed in
+        print(f"[DEBUG] Using passed cutoff_date for tab '{title}': {cutoff_date}")
+    elif asset_list == asset_list_tab3:
+        cutoff_date = datetime.date(1994, 6, 30) # Hardcoded for Tab 3 (Large vs Small)
+        print(f"[DEBUG] Using hardcoded cutoff_date for tab '{title}': {cutoff_date}")
+    # REMOVED: elif asset_list == asset_list_tab6: condition
+    else:
+        cutoff_date = st.session_state.get('ma_start_date') # Fallback to MA start date
+        print(f"[DEBUG] Using fallback cutoff_date (ma_start_date) for tab '{title}': {cutoff_date}")
+
+    print(f"[DEBUG] Final cutoff_date being used for filtering in tab '{title}': {cutoff_date}")
     print(f"[DEBUG] include_late_assets for tab '{title}': {include_late_assets}")
-    if not include_late_assets:
+
+    if not include_late_assets and cutoff_date is not None:
         eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
         if not eligible_assets:
             if asset_first_date:
@@ -1183,6 +1192,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     else:
         eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
     print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
+
     # --- Central eligibility function for trade inclusion ---
     def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
         asset = row.get('Asset', None)
@@ -1229,7 +1239,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
                 from config.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
-                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})"
+                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
         else:
             color = '#eeeeee'
         return [f'background-color: {color}'] * len(row)
@@ -1283,6 +1293,36 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
     avg_metrics_table['Asset'] = pd.Categorical(avg_metrics_table['Asset'], categories=asset_order, ordered=True)
     avg_metrics_table = avg_metrics_table.sort_values(['Regime','Asset']).reset_index(drop=True)
+
+    # Display the formatted table
+    def highlight_regime_avg(row):
+        regime_label = row['Regime']
+        regime_num = next((k for k, v in regime_labels_dict.items() if v == regime_label), None)
+        css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
+        # Use REGIME_BG_ALPHA for consistent background intensity
+        if css_rgba.startswith('rgba'):
+            match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
+            if match:
+                r,g,b,_ = match.groups()
+                from config.constants import REGIME_BG_ALPHA
+                color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
+            else:
+                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
+        else:
+            color = '#eeeeee'
+        return [f'background-color: {color}'] * len(row)
+
+    tab.dataframe(
+        avg_metrics_table.style
+            .format({
+                'Annualized Return (Aggregated)': '{:.2%}',
+                'Annualized Volatility (Aggregated)': '{:.2%}',
+                'Sharpe Ratio (Aggregated)': '{:.2f}',
+                'Average Max Drawdown (Period Avg)': '{:.2%}'
+            })
+            .apply(highlight_regime_avg, axis=1),
+        use_container_width=True
+    )
 
     # --- FOOTNOTES for Aggregated Performance Table ---
     tab.markdown("""
