@@ -59,10 +59,10 @@ regime_legend_colors = {
 }
 
 regime_labels_dict = {
-    1: 'Rising Growth & Rising Inflation',
-    2: 'Rising Growth & Falling Inflation',
-    3: 'Falling Growth & Rising Inflation',
-    4: 'Falling Growth & Falling Inflation',
+    1: '🎈 Reflation: Rising growth, rising inflation',
+    2: '👧🏼 Goldilocks: Rising growth, falling inflation',
+    3: '✋ Stagflation: Falling growth, rising inflation',
+    4: '💨 Deflation: Falling growth, falling inflation',
     'Unknown': 'Unknown'
 }
 

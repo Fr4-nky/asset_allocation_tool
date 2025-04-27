@@ -755,10 +755,10 @@ with tabs[0]:
     regime_legend_html = "<ul style='list-style-type:none; padding-left:0;'>"
     # Custom legend names: Goldilocks, Reflation, Stagflation, Deflation
     custom_legend_names = {
-        1: "<b>Reflation</b>: Rising growth, rising inflation",
-        2: "<b>Goldilocks</b>: Rising growth, falling inflation",
-        3: "<b>Stagflation</b>: Falling growth, rising inflation",
-        4: "<b>Deflation</b>: Falling growth, falling inflation"
+        2: "👧🏼 <b>Goldilocks</b>: Rising growth, falling inflation",
+        1: "🎈 <b>Reflation</b>: Rising growth, rising inflation",
+        4: "💨 <b>Deflation</b>: Falling growth, falling inflation",
+        3: "✋ <b>Stagflation</b>: Falling growth, rising inflation"
     }
     # custom order: 2,1,4,3
     for regime_num in [2,1,4,3]:
