@@ -755,10 +755,10 @@ with tabs[0]:
     regime_legend_html = "<ul style='list-style-type:none; padding-left:0;'>"
     # Custom legend names: Goldilocks, Reflation, Stagflation, Deflation
     custom_legend_names = {
-        2: "👧🏼 <b>Goldilocks</b>: Rising growth, falling inflation",
         1: "🎈 <b>Reflation</b>: Rising growth, rising inflation",
-        4: "💨 <b>Deflation</b>: Falling growth, falling inflation",
-        3: "✋ <b>Stagflation</b>: Falling growth, rising inflation"
+        2: "👧🏼 <b>Goldilocks</b>: Rising growth, falling inflation",
+        3: "✋ <b>Stagflation</b>: Falling growth, rising inflation",
+        4: "💨 <b>Deflation</b>: Falling growth, falling inflation"
     }
     # custom order: 2,1,4,3
     for regime_num in [2,1,4,3]:
@@ -815,25 +815,25 @@ with tabs[0]:
     scatter_fig.add_shape(
         type="rect",
         x0=0, x1=x_bg_max, y0=0, y1=y_bg_max,
-        fillcolor=regime_bg_colors[1],
+        fillcolor=regime_bg_colors[1],  # Reflation (red)
         line_width=0, layer="below"
     )
     scatter_fig.add_shape(
         type="rect",
         x0=0, x1=x_bg_max, y0=y_bg_min, y1=0,
-        fillcolor=regime_bg_colors[2],
+        fillcolor=regime_bg_colors[2],  # Goldilocks (green)
         line_width=0, layer="below"
     )
     scatter_fig.add_shape(
         type="rect",
         x0=x_bg_min, x1=0, y0=0, y1=y_bg_max,
-        fillcolor=regime_bg_colors[3],
+        fillcolor=regime_bg_colors[3],  # Stagflation (yellow)
         line_width=0, layer="below"
     )
     scatter_fig.add_shape(
         type="rect",
         x0=x_bg_min, x1=0, y0=y_bg_min, y1=0,
-        fillcolor=regime_bg_colors[4],
+        fillcolor=regime_bg_colors[4],  # Deflation (blue)
         line_width=0, layer="below"
     )
     # Update scatter plot to use S&P 500 MA pct change on x-axis
@@ -908,25 +908,25 @@ with tabs[0]:
     all_scatter_fig.add_shape(
         type="rect",
         x0=0, x1=x_bg_max_all, y0=0, y1=y_bg_max_all,
-        fillcolor=regime_bg_colors[1],
+        fillcolor=regime_bg_colors[1],  # Reflation (red)
         line_width=0, layer="below"
     )
     all_scatter_fig.add_shape(
         type="rect",
         x0=0, x1=x_bg_max_all, y0=y_bg_min_all, y1=0,
-        fillcolor=regime_bg_colors[2],
+        fillcolor=regime_bg_colors[2],  # Goldilocks (green)
         line_width=0, layer="below"
     )
     all_scatter_fig.add_shape(
         type="rect",
         x0=x_bg_min_all, x1=0, y0=0, y1=y_bg_max_all,
-        fillcolor=regime_bg_colors[3],
+        fillcolor=regime_bg_colors[3],  # Stagflation (yellow)
         line_width=0, layer="below"
     )
     all_scatter_fig.add_shape(
         type="rect",
         x0=x_bg_min_all, x1=0, y0=y_bg_min_all, y1=0,
-        fillcolor=regime_bg_colors[4],
+        fillcolor=regime_bg_colors[4],  # Deflation (blue)
         line_width=0, layer="below"
     )
     all_scatter_fig.add_trace(go.Scatter(
