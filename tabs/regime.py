@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
-from core.constants import asset_colors, regime_bg_colors, regime_labels_dict
+from core.constants import asset_colors, regime_bg_colors, regime_labels_dict, regime_legend_colors
 
 def render(tab, sp_inflation_data):
     """
@@ -133,16 +133,20 @@ def render(tab, sp_inflation_data):
     )
     st.plotly_chart(fig, use_container_width=False)
 
-    # Legend and additional markdown
+    # Regime Legend with transparent color swatches (dynamic)
+    custom_legend_names = {
+        2: "👧🏼 <b>Goldilocks</b>: Rising growth, falling inflation",
+        1: "🎈 <b>Reflation</b>: Rising growth, rising inflation",
+        4: "💨 <b>Deflation</b>: Falling growth, falling inflation",
+        3: "✋ <b>Stagflation</b>: Falling growth, rising inflation"
+    }
     tab.markdown("""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Regime Legend</h2>
-    <ul>
-    <li>👧🏼 <b>Goldilocks</b>: Rising growth, falling inflation</li>
-    <li>🎈 <b>Reflation</b>: Rising growth, rising inflation</li>
-    <li>💨 <b>Deflation</b>: Falling growth, falling inflation</li>
-    <li>✋ <b>Stagflation</b>: Falling growth, rising inflation</li>
-    </ul>
-    """, unsafe_allow_html=True)
+    <ul style='list-style-type:none; padding-left:0;'>
+    """ + "\n".join([
+        f"<li><span style='background-color:{regime_legend_colors.get(regime_num, 'grey')}; width:15px; height:15px; display:inline-block; margin-right:5px; border-radius:3px; border:1px solid #888;'></span> {custom_legend_names[regime_num]}</li>"
+        for regime_num in [2, 1, 4, 3]
+    ]) + "\n</ul>", unsafe_allow_html=True)
 
     tab.markdown("""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Regime Scatter Plots</h2>

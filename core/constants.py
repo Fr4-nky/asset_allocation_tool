@@ -50,21 +50,17 @@ asset_colors = {
 }
 
 REGIME_BG_ALPHA = 0.13  # Use the same alpha for all charts and tables
-regime_bg_colors = {
-    1: f'rgba(255, 0, 0, {REGIME_BG_ALPHA})',     # Reflation - Red
-    2: f'rgba(0, 255, 0, {REGIME_BG_ALPHA})',     # Goldilocks - Green
-    3: f'rgba(255, 255, 0, {REGIME_BG_ALPHA})',   # Stagflation - Yellow
-    4: f'rgba(0, 128, 255, {REGIME_BG_ALPHA})',   # Deflation - Blue
+
+_regime_rgba_tpl = lambda alpha: {
+    1: f'rgba(255, 0, 0, {alpha})',     # Reflation - Red
+    2: f'rgba(0, 255, 0, {alpha})',     # Goldilocks - Green
+    3: f'rgba(255, 255, 0, {alpha})',   # Stagflation - Yellow
+    4: f'rgba(0, 128, 255, {alpha})',   # Deflation - Blue
     'Unknown': 'rgba(220, 220, 220, 0.5)'
 }
 
-regime_legend_colors = {
-    1: 'rgba(255, 0, 0, 0.7)',    # Reflation - Red
-    2: 'rgba(0, 255, 0, 0.7)',   # Goldilocks - Green
-    3: 'rgba(255, 255, 0, 0.7)', # Stagflation - Yellow
-    4: 'rgba(0, 128, 255, 0.7)', # Deflation - Blue
-    'Unknown': 'rgba(220, 220, 220, 0.5)'
-}
+regime_bg_colors = _regime_rgba_tpl(REGIME_BG_ALPHA)
+regime_legend_colors = _regime_rgba_tpl(REGIME_BG_ALPHA)
 
 regime_labels_dict = {
     1: '🎈 Reflation: Rising growth, rising inflation',
