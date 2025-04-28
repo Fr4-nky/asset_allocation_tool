@@ -2,6 +2,7 @@ import base64
 import pandas as pd
 import requests
 import json
+import streamlit as st
 
 def decode_base64_data(encoded_data):
     """Decodes a list of [base64_date, base64_value] pairs."""
@@ -16,6 +17,7 @@ def decode_base64_data(encoded_data):
             print(f"WARNING: Skipping record due to decoding/conversion error: {e} - Date: {date_b64}, Value: {value_b64}")
     return decoded_list
 
+@st.cache_data
 def fetch_and_decode(url, column_name):
     """Fetches data from a URL, decodes it, and returns a Pandas DataFrame."""
     print(f"INFO: Fetching data from {url}...")

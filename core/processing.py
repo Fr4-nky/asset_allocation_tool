@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
+import streamlit as st
 
+@st.cache_data
 def merge_asset_with_regimes(asset_ts_df, sp_inflation_filtered):
     # Merge asset time series data with regime assignments based on DateTime.
     merged = pd.merge(asset_ts_df, sp_inflation_filtered[['DateTime', 'Regime']], on='DateTime', how='left')
@@ -8,12 +10,15 @@ def merge_asset_with_regimes(asset_ts_df, sp_inflation_filtered):
     merged['Regime_Change'] = merged['Regime'].ne(merged['Regime'].shift()).cumsum()
     return merged
 
+@st.cache_data
 def compute_moving_average(data, window_size):
     return data.rolling(window=window_size, min_periods=window_size).mean()
 
+@st.cache_data
 def compute_growth(ma_data):
     return ma_data.diff()
 
+@st.cache_data
 def assign_regimes(sp_inflation_df, regime_definitions):
     sp_inflation_df['Regime'] = np.nan
     for regime in regime_definitions:

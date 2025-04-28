@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import streamlit as st
 
 def generate_trade_log(merged_asset_data_metrics, asset_list, regime_labels_dict=None):
     trade_log_results = []
@@ -44,6 +45,7 @@ def generate_trade_log(merged_asset_data_metrics, asset_list, regime_labels_dict
         df['Regime'] = df['Regime'].astype(str)
     return df
 
+@st.cache_data
 def generate_aggregated_metrics(trade_log_df, merged_asset_data_metrics, asset_list, regime_labels_dict):
     required_cols = {'Period Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown'}
     avg_metrics = []
@@ -87,6 +89,7 @@ def generate_aggregated_metrics(trade_log_df, merged_asset_data_metrics, asset_l
         avg_metrics_table.sort_values(['Regime', 'Asset'], inplace=True)
     return avg_metrics_table
 
+@st.cache_data
 def generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list, regime_labels_dict):
     """
     Generate a trade log DataFrame for the given assets using regime periods,

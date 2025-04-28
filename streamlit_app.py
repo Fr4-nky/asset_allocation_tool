@@ -71,16 +71,18 @@ if 'include_late_assets' not in st.session_state:
     st.session_state['include_late_assets'] = False
 include_late_assets = st.session_state['include_late_assets']
 
-# --- User-defined Start and End Dates BEFORE computing MAs and Growth ---
-# Ensure sp_inflation_data and asset_ts_data are loaded before this block
-try:
-    min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
-    max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
-except Exception:
+# Data Loading & Caching
+if 'sp_inflation_data' not in st.session_state:
     with st.spinner('Loading data...'):
         sp_inflation_data, asset_ts_data = load_data()
-    min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
-    max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
+        st.session_state['sp_inflation_data'] = sp_inflation_data
+        st.session_state['asset_ts_data']    = asset_ts_data
+sp_inflation_data = st.session_state['sp_inflation_data']
+asset_ts_data      = st.session_state['asset_ts_data']
+
+# Determine date range
+min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
+max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
 
 # Separate sidebar inputs
 start_date = st.sidebar.date_input(
