@@ -11,6 +11,13 @@ def render(tab, asset_ts_data, sp_inflation_data, session_state):
     trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab3, regime_labels_dict)
     dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
     cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else session_state.get('ma_start_date')
+    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
+    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_large_small_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
+    include_pre_cutoff_trades = st.checkbox(
+        checkbox_label,
+        value=session_state.get(pre_cutoff_checkbox_key, False),
+        key=pre_cutoff_checkbox_key
+    )
     tab_key = f"include_late_assets_large_small_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
     include_late_assets = st.checkbox(
         "also include assets with later start dates in aggregations and bar charts.",
@@ -40,7 +47,9 @@ def render(tab, asset_ts_data, sp_inflation_data, session_state):
         regime_labels_dict,
         sp_inflation_data,
         asset_ts_data,
+        include_pre_cutoff_trades=include_pre_cutoff_trades,
         include_late_assets=include_late_assets,
+        cutoff_date=cutoff_date,
         eligible_assets=eligible_assets,
         tab_title="Large vs. Small Cap"
     )
