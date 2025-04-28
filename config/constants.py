@@ -39,6 +39,14 @@ asset_colors = {
     'MSCI World Prime Value': '#fdbf6f',
     'MSCI World Minimum Volatility (USD)': '#cab2d6',
     'MSCI World Risk Weighted': '#6a3d9a',
+    # Add All-Weather Portfolio asset colors
+    'SPDR S&P 500 ETF (SPY)': 'blue',
+    'Vanguard Total World Stock Index Fund ETF Shares (VT)': 'green',
+    'iShares 20+ Year Treasury Bond ETF (TLT)': 'black',
+    'iShares 7-10 Year Treasury Bond ETF (IEF)': 'gray',
+    'iShares TIPS Bond ETF (TIP)': 'red',
+    'Invesco DB Commodity Index Tracking Fund (DBC)': 'orange',
+    'SPDR Gold Shares (GLD)': 'gold'
 }
 
 REGIME_BG_ALPHA = 0.13  # Use the same alpha for all charts and tables
@@ -108,6 +116,16 @@ asset_list_tab6 = [
     'MSCI World Prime Value',
     'MSCI World Minimum Volatility (USD)',
     'MSCI World Risk Weighted'
+]
+
+asset_list_tab7 = [
+    'SPDR S&P 500 ETF (SPY)',
+    'Vanguard Total World Stock Index Fund ETF Shares (VT)',
+    'iShares 20+ Year Treasury Bond ETF (TLT)',
+    'iShares 7-10 Year Treasury Bond ETF (IEF)',
+    'iShares TIPS Bond ETF (TIP)',
+    'Invesco DB Commodity Index Tracking Fund (DBC)',
+    'SPDR Gold Shares (GLD)'
 ]
 
 regime_definitions = [

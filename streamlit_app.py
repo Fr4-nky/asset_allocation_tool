@@ -15,7 +15,7 @@ from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
 from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
-from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, regime_definitions, REGIME_BG_ALPHA
+from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, asset_list_tab7, regime_definitions, REGIME_BG_ALPHA
 
 # Set page configuration
 st.set_page_config(
@@ -84,6 +84,14 @@ def load_data():
     world_prime_val_url = "https://www.longtermtrends.net/data-msci-world-prime-value/"
     world_min_vol_url = "https://www.longtermtrends.net/data-msci-minimum-volatility/"
     world_risk_url = "https://www.longtermtrends.net/data-msci-world-risk-weighted/"
+    # All-Weather Portfolio
+    spy_url = "https://www.longtermtrends.net/data-yfin-spy/"
+    vt_url = "https://www.longtermtrends.net/data-yfin-vt/"
+    tlt_url = "https://www.longtermtrends.net/data-yfin-tlt/"
+    ief_url = "https://www.longtermtrends.net/data-yfin-ief/"
+    tip_url = "https://www.longtermtrends.net/data-yfin-tip/"
+    dbc_url = "https://www.longtermtrends.net/data-yfin-dbc/"
+    gld_url = "https://www.longtermtrends.net/data-yfin-gld/"
 
     # --- Fetch all datasets in parallel ---
     urls = {
@@ -122,7 +130,15 @@ def load_data():
         'MSCI World Enhanced Value': world_enh_val_url,
         'MSCI World Prime Value': world_prime_val_url,
         'MSCI World Minimum Volatility (USD)': world_min_vol_url,
-        'MSCI World Risk Weighted': world_risk_url
+        'MSCI World Risk Weighted': world_risk_url,
+        # All-Weather Portfolio
+        'SPDR S&P 500 ETF (SPY)': spy_url,
+        'Vanguard Total World Stock Index Fund ETF Shares (VT)': vt_url,
+        'iShares 20+ Year Treasury Bond ETF (TLT)': tlt_url,
+        'iShares 7-10 Year Treasury Bond ETF (IEF)': ief_url,
+        'iShares TIPS Bond ETF (TIP)': tip_url,
+        'Invesco DB Commodity Index Tracking Fund (DBC)': dbc_url,
+        'SPDR Gold Shares (GLD)': gld_url
     }
     results = {}
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -172,6 +188,14 @@ def load_data():
     df_world_prime_val = results.get('MSCI World Prime Value')
     df_world_min_vol = results.get('MSCI World Minimum Volatility (USD)')
     df_world_risk = results.get('MSCI World Risk Weighted')
+    # All-Weather Portfolio
+    df_spy = results.get('SPDR S&P 500 ETF (SPY)')
+    df_vt = results.get('Vanguard Total World Stock Index Fund ETF Shares (VT)')
+    df_tlt = results.get('iShares 20+ Year Treasury Bond ETF (TLT)')
+    df_ief = results.get('iShares 7-10 Year Treasury Bond ETF (IEF)')
+    df_tip = results.get('iShares TIPS Bond ETF (TIP)')
+    df_dbc = results.get('Invesco DB Commodity Index Tracking Fund (DBC)')
+    df_gld = results.get('SPDR Gold Shares (GLD)')
 
     # --- Data Preprocessing (Resampling, Merging, Filtering) ---
     print("DEBUG: Applying resampling and merging logic...")
@@ -233,6 +257,14 @@ def load_data():
     df_world_prime_val_resampled = resample_and_correct_date(df_world_prime_val, 'MSCI World Prime Value')
     df_world_min_vol_resampled = resample_and_correct_date(df_world_min_vol, 'MSCI World Minimum Volatility (USD)')
     df_world_risk_resampled = resample_and_correct_date(df_world_risk, 'MSCI World Risk Weighted')
+    # Resample All-Weather Portfolio series
+    df_spy_resampled = resample_and_correct_date(df_spy, 'SPDR S&P 500 ETF (SPY)')
+    df_vt_resampled = resample_and_correct_date(df_vt, 'Vanguard Total World Stock Index Fund ETF Shares (VT)')
+    df_tlt_resampled = resample_and_correct_date(df_tlt, 'iShares 20+ Year Treasury Bond ETF (TLT)')
+    df_ief_resampled = resample_and_correct_date(df_ief, 'iShares 7-10 Year Treasury Bond ETF (IEF)')
+    df_tip_resampled = resample_and_correct_date(df_tip, 'iShares TIPS Bond ETF (TIP)')
+    df_dbc_resampled = resample_and_correct_date(df_dbc, 'Invesco DB Commodity Index Tracking Fund (DBC)')
+    df_gld_resampled = resample_and_correct_date(df_gld, 'SPDR Gold Shares (GLD)')
 
     # 2. Inner Merge S&P 500 and Inflation Rate (for Tab 1)
     sp_inflation_df = pd.DataFrame() # Initialize empty df
@@ -280,7 +312,10 @@ def load_data():
                                    df_world_buyback_resampled, df_world_tsy_resampled,
                                    df_world_small_resampled, df_world_ew_resampled,
                                    df_world_enh_val_resampled, df_world_prime_val_resampled,
-                                   df_world_min_vol_resampled, df_world_risk_resampled] if df is not None]
+                                   df_world_min_vol_resampled, df_world_risk_resampled,
+                                   df_spy_resampled, df_vt_resampled, df_tlt_resampled,
+                                   df_ief_resampled, df_tip_resampled, df_dbc_resampled,
+                                   df_gld_resampled] if df is not None]
     if len(all_asset_dfs) > 1:
         print(f"DEBUG: Performing OUTER merge on {len(all_asset_dfs)} resampled asset DataFrames...")
         # Ensure all dataframes have the same index name before merging
@@ -506,7 +541,7 @@ sp_inflation_data['Regime'] = sp_inflation_data['Regime'].fillna('Unknown')
 # --- Logging for Tab Rendering ---
 t0 = time.time()
 print("DEBUG: Starting Tab rendering.")
-tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors", "Factor Investing"])
+tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors", "Factor Investing", "All-Weather Portfolio"])
 t1 = time.time()
 print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
 
@@ -1074,6 +1109,7 @@ def generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_li
     for row in periods.itertuples(index=False):
         start, end, regime_lbl = row.Start, row.End, row.RegimeLabel
         for asset in asset_list:
+            # Prepare DataFrame with DateTime column
             df_a = merged_asset_data_metrics[['DateTime', asset]].dropna()
             if df_a.empty:
                 continue
@@ -1507,4 +1543,35 @@ with tabs[4]:
         include_late_assets=include_late_assets,
         eligible_assets=eligible_assets,
         tab_title="US Sectors"
+    )
+
+# Tab 7: All-Weather Portfolio
+with tabs[6]:
+    min_assets_required = 7
+    # Generate trade log for current MA and asset list
+    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab7, regime_labels_dict)
+    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
+    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
+    # Pre-cutoff checkbox
+    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
+    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_awp_{hashlib.md5(str(asset_list_tab7).encode()).hexdigest()}"
+    include_pre_cutoff_trades = st.checkbox(
+        checkbox_label,
+        value=st.session_state.get(pre_cutoff_checkbox_key, False),
+        key=pre_cutoff_checkbox_key
+    )
+    render_asset_analysis_tab(
+        tabs[6],
+        "Performance of All-Weather Portfolio Across Regimes",
+        asset_list_tab7,
+        asset_colors,
+        regime_bg_colors,
+        regime_labels_dict,
+        sp_inflation_data,
+        asset_ts_data,
+        include_pre_cutoff_trades=include_pre_cutoff_trades,
+        include_late_assets=True,
+        cutoff_date=cutoff_date,
+        tab_title="All-Weather Portfolio"
     )
