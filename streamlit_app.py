@@ -15,6 +15,7 @@ import tabs.us_sectors  # New import
 import tabs.factor_investing  # New import
 import tabs.large_vs_small  # New import
 import tabs.cyclical_vs_defensive  # New import
+import tabs.asset_classes  # New import
 
 from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
@@ -936,18 +937,14 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 """, unsafe_allow_html=True)
     plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
 
-# Tab 2: Asset Classes (Refactored)
+# Tab 2: Asset Classes
+import tabs.asset_classes
 with tab_objs[1]:
-    render_asset_analysis_tab(
+    tabs.asset_classes.render(
         tab_objs[1],
-        "Asset Class Performance Over Time",
-        asset_list_tab2,
-        asset_colors,
-        regime_bg_colors,
-        regime_labels_dict,
-        sp_inflation_data,
-        asset_ts_data,
-        "Asset Classes"
+        asset_ts_data=asset_ts_data,
+        sp_inflation_data=sp_inflation_data,
+        session_state=st.session_state
     )
 
 # Tab 6: Factor Investing
