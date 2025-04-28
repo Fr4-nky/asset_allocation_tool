@@ -86,3 +86,63 @@ def generate_aggregated_metrics(trade_log_df, merged_asset_data_metrics, asset_l
         avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
         avg_metrics_table.sort_values(['Regime', 'Asset'], inplace=True)
     return avg_metrics_table
+
+def generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list, regime_labels_dict):
+    """
+    Generate a trade log DataFrame for the given assets using regime periods,
+    skipping any regime that starts before an asset has data.
+    """
+    # Identify regime periods
+    dfp = sp_inflation_data.dropna(subset=['Regime'])
+    dfp = dfp[dfp['Regime'] != 'Unknown']
+    change = dfp['Regime'].ne(dfp['Regime'].shift())
+    periods = dfp.loc[change, ['DateTime', 'Regime']].copy()
+    periods['Start'] = periods['DateTime']
+    periods['End'] = periods['Start'].shift(-1)
+    periods.at[periods.index[-1], 'End'] = dfp['DateTime'].iloc[-1]
+    periods['RegimeLabel'] = periods['Regime'].map(regime_labels_dict)
+    results = []
+    # Loop each regime period
+    for row in periods.itertuples(index=False):
+        start, end, regime_lbl = row.Start, row.End, row.RegimeLabel
+        for asset in asset_list:
+            # Prepare DataFrame with DateTime column
+            df_a = merged_asset_data_metrics[['DateTime', asset]].dropna()
+            if df_a.empty:
+                continue
+            first_date = df_a['DateTime'].min()
+            # skip if regime starts before asset data begins
+            if start < first_date:
+                continue
+            seg = df_a[(df_a['DateTime'] >= start) & (df_a['DateTime'] <= end)]
+            if seg.empty:
+                continue
+            p0, p1 = seg[asset].iloc[0], seg[asset].iloc[-1]
+            ret = (p1 - p0) / p0 if p0 else np.nan
+            r = seg[asset].pct_change().dropna()
+            vol = r.std() * np.sqrt(12) if not r.empty else np.nan
+            cum = (1 + r).cumprod()
+            dd = cum / cum.cummax() - 1
+            mdd = dd.min() if not dd.empty else np.nan
+            shp = ret / vol if vol and not np.isnan(ret) else np.nan
+            results.append({
+                'Asset': asset,
+                'Regime': regime_lbl,
+                'Start Date': start.strftime('%Y-%m-%d'),
+                'End Date': end.strftime('%Y-%m-%d'),
+                'Start Price': p0,
+                'End Price': p1,
+                'Period Return': ret,
+                'Volatility': vol,
+                'Sharpe Ratio': shp,
+                'Max Drawdown': mdd
+            })
+    df_tl = pd.DataFrame(results)
+    if df_tl.empty:
+        return df_tl
+    # Ordering
+    order_regime = [regime_labels_dict[k] for k in [2,1,4,3]]
+    df_tl['Regime'] = pd.Categorical(df_tl['Regime'], categories=order_regime, ordered=True)
+    df_tl['Asset'] = pd.Categorical(df_tl['Asset'], categories=asset_list, ordered=True)
+    df_tl = df_tl.sort_values(['Start Date', 'Regime', 'Asset'], ascending=[False, True, True]).reset_index(drop=True)
+    return df_tl

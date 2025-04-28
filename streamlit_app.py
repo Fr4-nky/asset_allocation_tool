@@ -10,6 +10,7 @@ import re
 import concurrent.futures
 import datetime  # for default dates and cutoffs
 import hashlib
+import tabs.all_weather  # New import
 
 from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
@@ -17,6 +18,7 @@ from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from metrics.performance import generate_aggregated_metrics
 from config.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, asset_list_tab7, regime_definitions, REGIME_BG_ALPHA
 from data.loader import load_data
+from ui.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_asset_analysis_tab
 
 # Set page configuration
 st.set_page_config(
@@ -43,42 +45,6 @@ st.write("""
 This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate data, and analyzes asset performance across these regimes.
 """)
 
-# Define get_dynamic_cutoff_date ONCE at the top-level, so it is available to all tabs
-def get_dynamic_cutoff_date(asset_ts_data, asset_list, min_assets_required):
-    df = asset_ts_data[['DateTime'] + [a for a in asset_list if a in asset_ts_data.columns]].copy()
-    df = df.set_index('DateTime')
-    active_assets = df.notna().sum(axis=1)
-    dynamic_cutoff = active_assets[active_assets >= min_assets_required].index.min()
-    return dynamic_cutoff
-
-# --- Helper: Compute dynamic cutoff date based on trade log (regime start with N assets) ---
-def get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required):
-    # For each date (not regime), count number of unique assets present in the trade log
-    trade_log_df = trade_log_df.sort_values('Start Date')
-    asset_counts = trade_log_df.groupby('Start Date')['Asset'].nunique()
-    eligible_dates = asset_counts[asset_counts >= min_assets_required]
-    if not eligible_dates.empty:
-        return pd.to_datetime(eligible_dates.index[0]).date()
-    else:
-        return None
-
-with st.spinner('Loading data...'):
-    t0 = time.time()
-    sp_inflation_data, asset_ts_data = load_data()
-    t1 = time.time()
-    print(f"DEBUG: Data loading complete. Took {t1-t0:.2f} seconds.")
-
-# Check if dataframes are empty after loading attempt
-if sp_inflation_data.empty or asset_ts_data.empty:
-    # Keep st.error here for frontend visibility of critical failure
-    st.error("Failed to load necessary data. Please check the data sources and try again.")
-    print("ERROR: Halting execution due to empty dataframes after load.") # Add terminal log
-    st.stop() # Stop execution if data loading failed
-
-# Ensure 'DateTime' is datetime type
-sp_inflation_data['DateTime'] = pd.to_datetime(sp_inflation_data['DateTime'])
-asset_ts_data['DateTime'] = pd.to_datetime(asset_ts_data['DateTime'])
-
 # Sidebar User Inputs
 st.sidebar.header("User Input")
 # Single moving average input for both S&P 500 and Inflation
@@ -100,9 +66,16 @@ if 'include_late_assets' not in st.session_state:
 include_late_assets = st.session_state['include_late_assets']
 
 # --- User-defined Start and End Dates BEFORE computing MAs and Growth ---
-# Determine full data span
-min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
-max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
+# Ensure sp_inflation_data and asset_ts_data are loaded before this block
+try:
+    min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
+    max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
+except Exception:
+    with st.spinner('Loading data...'):
+        sp_inflation_data, asset_ts_data = load_data()
+    min_date = min(sp_inflation_data['DateTime'].min(), asset_ts_data['DateTime'].min()).date()
+    max_date = max(sp_inflation_data['DateTime'].max(), asset_ts_data['DateTime'].max()).date()
+
 # Separate sidebar inputs
 start_date = st.sidebar.date_input(
     "Start Date", value=datetime.date(1972, 1, 31), min_value=min_date, max_value=max_date, key="start_date"
@@ -186,12 +159,12 @@ sp_inflation_data['Regime'] = sp_inflation_data['Regime'].fillna('Unknown')
 # --- Logging for Tab Rendering ---
 t0 = time.time()
 print("DEBUG: Starting Tab rendering.")
-tabs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors", "Factor Investing", "All-Weather Portfolio"])
+tab_objs = st.tabs(["Regime Visualization", "Asset Classes", "Large vs. Small Cap", "Cyclical vs. Defensive", "US Sectors", "Factor Investing", "All-Weather Portfolio"])
 t1 = time.time()
 print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
 
 # Tab 1: Regime Visualization
-with tabs[0]:
+with tab_objs[0]:
     st.markdown("<h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Regime Visualization</h2>", unsafe_allow_html=True)
     t_tab1 = time.time()
     print("DEBUG: Rendering Tab 1: Regime Visualization.")
@@ -735,66 +708,6 @@ with tabs[0]:
     t_tab1_end = time.time()
     print(f"DEBUG: Tab 1 rendering took {t_tab1_end-t_tab1:.2f} seconds.")
 
-def generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list, regime_labels_dict):
-    """
-    Generate a trade log DataFrame for the given assets using regime periods,
-    skipping any regime that starts before an asset has data.
-    """
-    # Identify regime periods
-    dfp = sp_inflation_data.dropna(subset=['Regime'])
-    dfp = dfp[dfp['Regime'] != 'Unknown']
-    change = dfp['Regime'].ne(dfp['Regime'].shift())
-    periods = dfp.loc[change, ['DateTime', 'Regime']].copy()
-    periods['Start'] = periods['DateTime']
-    periods['End'] = periods['Start'].shift(-1)
-    periods.at[periods.index[-1], 'End'] = dfp['DateTime'].iloc[-1]
-    periods['RegimeLabel'] = periods['Regime'].map(regime_labels_dict)
-    results = []
-    # Loop each regime period
-    for row in periods.itertuples(index=False):
-        start, end, regime_lbl = row.Start, row.End, row.RegimeLabel
-        for asset in asset_list:
-            # Prepare DataFrame with DateTime column
-            df_a = merged_asset_data_metrics[['DateTime', asset]].dropna()
-            if df_a.empty:
-                continue
-            first_date = df_a['DateTime'].min()
-            # skip if regime starts before asset data begins
-            if start < first_date:
-                continue
-            seg = df_a[(df_a['DateTime'] >= start) & (df_a['DateTime'] <= end)]
-            if seg.empty:
-                continue
-            p0, p1 = seg[asset].iloc[0], seg[asset].iloc[-1]
-            ret = (p1 - p0) / p0 if p0 else np.nan
-            r = seg[asset].pct_change().dropna()
-            vol = r.std() * np.sqrt(12) if not r.empty else np.nan
-            cum = (1 + r).cumprod()
-            dd = cum / cum.cummax() - 1
-            mdd = dd.min() if not dd.empty else np.nan
-            shp = ret / vol if vol and not np.isnan(ret) else np.nan
-            results.append({
-                'Asset': asset,
-                'Regime': regime_lbl,
-                'Start Date': start.strftime('%Y-%m-%d'),
-                'End Date': end.strftime('%Y-%m-%d'),
-                'Start Price': p0,
-                'End Price': p1,
-                'Period Return': ret,
-                'Volatility': vol,
-                'Sharpe Ratio': shp,
-                'Max Drawdown': mdd
-            })
-    df_tl = pd.DataFrame(results)
-    if df_tl.empty:
-        return df_tl
-    # Ordering
-    order_regime = [regime_labels_dict[k] for k in [2,1,4,3]]
-    df_tl['Regime'] = pd.Categorical(df_tl['Regime'], categories=order_regime, ordered=True)
-    df_tl['Asset'] = pd.Categorical(df_tl['Asset'], categories=asset_list, ordered=True)
-    df_tl = df_tl.sort_values(['Start Date', 'Regime', 'Asset'], ascending=[False, True, True]).reset_index(drop=True)
-    return df_tl
-
 def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, sp_inflation_data, asset_ts_data, include_pre_cutoff_trades=False, include_late_assets=False, cutoff_date=None, eligible_assets=None, tab_title=""):
     tab.markdown(f"""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>{title}</h2>
@@ -834,6 +747,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Trade Log</h2>
     """, unsafe_allow_html=True)
     merged_asset_data_metrics = merged_asset_data.copy()
+    from metrics.performance import generate_trade_log_df
     trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list, regime_labels_dict)
     # --- Asset filtering for aggregated metrics/bar charts ---
     # Compute first available date for each asset
@@ -849,8 +763,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     from config.constants import asset_list_tab3 # Remove asset_list_tab6 import here
 
     if passed_cutoff_date is not None:
-        cutoff_date = passed_cutoff_date # Use the date calculated externally and passed in
-        print(f"[DEBUG] Using passed cutoff_date for tab '{title}': {cutoff_date}")
+        cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
     elif asset_list == asset_list_tab3:
         cutoff_date = datetime.date(1994, 6, 30) # Hardcoded for Tab 3 (Large vs Small)
         print(f"[DEBUG] Using hardcoded cutoff_date for tab '{title}': {cutoff_date}")
@@ -1020,9 +933,9 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
 
 # Tab 2: Asset Classes (Refactored)
-with tabs[1]:
+with tab_objs[1]:
     render_asset_analysis_tab(
-        tabs[1],
+        tab_objs[1],
         "Asset Class Performance Over Time",
         asset_list_tab2,
         asset_colors,
@@ -1034,10 +947,11 @@ with tabs[1]:
     )
 
 # Tab 6: Factor Investing
-with tabs[5]:
+with tab_objs[5]:
     min_assets_required = 5
     # Generate trade log for current MA and asset list
     merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    from metrics.performance import generate_trade_log_df
     trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab6, regime_labels_dict)
     dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
     cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
@@ -1070,7 +984,7 @@ with tabs[5]:
     else:
         eligible_assets = [a for a in asset_list_tab6 if a in asset_ts_data.columns]
     render_asset_analysis_tab(
-        tabs[5],
+        tab_objs[5],
         "Performance of MSCI World Factor Strategies Across Regimes",
         asset_list_tab6,
         asset_colors,
@@ -1086,10 +1000,11 @@ with tabs[5]:
     )
 
 # Tab 3: Large vs. Small Cap
-with tabs[2]:
+with tab_objs[2]:
     min_assets_required = 3
     # Generate trade log for current MA and asset list
     merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
+    from metrics.performance import generate_trade_log_df
     trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab3, regime_labels_dict)
     dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
     cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
@@ -1122,7 +1037,7 @@ with tabs[2]:
     else:
         eligible_assets = [a for a in asset_list_tab3 if a in asset_ts_data.columns]
     render_asset_analysis_tab(
-        tabs[2],
+        tab_objs[2],
         "Performance of Large, Mid, Small, and Micro Cap Stocks Across Regimes",
         asset_list_tab3,
         asset_colors,
@@ -1138,9 +1053,9 @@ with tabs[2]:
     )
 
 # Tab 4: Cyclical vs. Defensive
-with tabs[3]:
+with tab_objs[3]:
     render_asset_analysis_tab(
-        tabs[3],
+        tab_objs[3],
         "Cyclical vs. Defensive Stocks Across Regimes",
         asset_list_tab4,
         asset_colors,
@@ -1152,7 +1067,7 @@ with tabs[3]:
     )
 
 # Tab 5: US Sectors
-with tabs[4]:
+with tab_objs[4]:
     # Only show the second checkbox (late assets) for Sectors tab (tab 5)
     tab_key = f"include_late_assets_sectors_{hashlib.md5(str(asset_list_tab5).encode()).hexdigest()}"
     include_late_assets = st.checkbox(
@@ -1177,7 +1092,7 @@ with tabs[4]:
     else:
         eligible_assets = [a for a in asset_list_tab5 if a in asset_ts_data.columns]
     render_asset_analysis_tab(
-        tabs[4],
+        tab_objs[4],
         "Performance of US Sector ETFs Across Regimes",
         asset_list_tab5,
         asset_colors,
@@ -1191,32 +1106,10 @@ with tabs[4]:
     )
 
 # Tab 7: All-Weather Portfolio
-with tabs[6]:
-    min_assets_required = 7
-    # Generate trade log for current MA and asset list
-    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
-    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab7, regime_labels_dict)
-    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
-    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
-    # Pre-cutoff checkbox
-    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
-    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_awp_{hashlib.md5(str(asset_list_tab7).encode()).hexdigest()}"
-    include_pre_cutoff_trades = st.checkbox(
-        checkbox_label,
-        value=st.session_state.get(pre_cutoff_checkbox_key, False),
-        key=pre_cutoff_checkbox_key
-    )
-    render_asset_analysis_tab(
-        tabs[6],
-        "Performance of All-Weather Portfolio Across Regimes",
-        asset_list_tab7,
-        asset_colors,
-        regime_bg_colors,
-        regime_labels_dict,
-        sp_inflation_data,
-        asset_ts_data,
-        include_pre_cutoff_trades=include_pre_cutoff_trades,
-        include_late_assets=True,
-        cutoff_date=cutoff_date,
-        tab_title="All-Weather Portfolio"
+with tab_objs[6]:
+    tabs.all_weather.render(
+        tab_objs[6],
+        asset_ts_data=asset_ts_data,
+        sp_inflation_data=sp_inflation_data,
+        session_state=st.session_state
     )
