@@ -13,6 +13,7 @@ import hashlib
 import tabs.all_weather  # New import
 import tabs.us_sectors  # New import
 import tabs.factor_investing  # New import
+import tabs.large_vs_small  # New import
 
 from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
@@ -959,55 +960,11 @@ with tab_objs[5]:
 
 # Tab 3: Large vs. Small Cap
 with tab_objs[2]:
-    min_assets_required = 3
-    # Generate trade log for current MA and asset list
-    merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
-    from metrics.performance import generate_trade_log_df
-    trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab3, regime_labels_dict)
-    dynamic_cutoff_date = get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required)
-    cutoff_date = dynamic_cutoff_date if dynamic_cutoff_date is not None else st.session_state.get('ma_start_date')
-    # Pre-cutoff checkbox (now appears first)
-    checkbox_label = f"also include trades before {cutoff_date.strftime('%Y-%m-%d')} (when at least {min_assets_required} assets are present in a regime) in aggregations and bar charts."
-    pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_cap_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
-    include_pre_cutoff_trades = st.checkbox(
-        checkbox_label,
-        value=st.session_state.get(pre_cutoff_checkbox_key, False),
-        key=pre_cutoff_checkbox_key
-    )
-    tab_key = f"include_late_assets_cap_{hashlib.md5(str(asset_list_tab3).encode()).hexdigest()}"
-    include_late_assets = st.checkbox(
-        "also include assets with later start dates in aggregations and bar charts.",
-        value=st.session_state.get(tab_key, False),
-        key=tab_key
-    )
-    asset_first_date = {
-        asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
-        for asset in asset_list_tab3 if asset in asset_ts_data.columns
-    }
-    if not include_late_assets:
-        eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
-        if not eligible_assets:
-            if asset_first_date:
-                min_date = min(asset_first_date.values())
-                eligible_assets = [a for a, d in asset_first_date.items() if d == min_date]
-            else:
-                eligible_assets = []
-    else:
-        eligible_assets = [a for a in asset_list_tab3 if a in asset_ts_data.columns]
-    render_asset_analysis_tab(
+    tabs.large_vs_small.render(
         tab_objs[2],
-        "Performance of Large, Mid, Small, and Micro Cap Stocks Across Regimes",
-        asset_list_tab3,
-        asset_colors,
-        regime_bg_colors,
-        regime_labels_dict,
-        sp_inflation_data,
-        asset_ts_data,
-        include_pre_cutoff_trades=include_pre_cutoff_trades,
-        include_late_assets=include_late_assets,
-        cutoff_date=cutoff_date,
-        eligible_assets=eligible_assets,
-        tab_title="Large vs. Small Cap"
+        asset_ts_data=asset_ts_data,
+        sp_inflation_data=sp_inflation_data,
+        session_state=st.session_state
     )
 
 # Tab 4: Cyclical vs. Defensive
