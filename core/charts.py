@@ -76,6 +76,9 @@ def plot_asset_performance_over_time(merged_asset_data, asset_list, asset_colors
         margin=dict(l=50, r=50, t=100, b=100),
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial", font_color="black")
     )
+    # Reset zoom on each render
+    fig.update_xaxes(autorange=True)
+    fig.update_yaxes(autorange=True)
     st.plotly_chart(fig, use_container_width=False, key=f"norm_chart_{chart_title}_{id(fig)}")
 
 def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title=""):
@@ -155,6 +158,9 @@ def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, r
             height=500,
             title_font=dict(size=20)
         )
+        # Reset zoom on bar charts
+        fig3.update_xaxes(autorange=True)
+        fig3.update_yaxes(autorange=True)
         if metric in ['Annualized Return (Aggregated)', 'Annualized Volatility (Aggregated)', 'Average Max Drawdown (Period Avg)']:
             fig3.update_yaxes(tickformat=".0%")
 
