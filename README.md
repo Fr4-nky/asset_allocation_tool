@@ -25,11 +25,11 @@ To add a new analysis tab to the application, follow these steps:
    - Add color mappings for your new assets to the `asset_colors` dictionary if needed.
 
 2. **Add Data URLs and Fetch Logic**
-   - In `streamlit_app.py`, within the `load_data()` function, define URLs for your new assets.
+   - In `data/loader.py`, define URLs for your new assets and update the data loading logic in the `load_data()` function.
    - Fetch, decode, and preprocess each asset’s data as needed (follow the pattern for existing assets).
 
 3. **Include in Data Merge**
-   - Append your new asset DataFrames to the main merged DataFrame list in `load_data()` so they are available for analysis and visualization.
+   - Append your new asset DataFrames to the main merged DataFrame list in `load_data()` in `data/loader.py` so they are available for analysis and visualization.
 
 4. **Add Tab Name**
    - Add your new tab’s name to the `tabs = st.tabs([...])` list at the desired position in `streamlit_app.py`.
@@ -41,6 +41,9 @@ To add a new analysis tab to the application, follow these steps:
 
 6. **Test the App**
    - Run the app and verify that your new tab appears and functions correctly.
+
+**Note:**
+- The data loading logic and all asset data URLs have been moved from `streamlit_app.py` to `data/loader.py`. If you need to add or edit asset URLs or data fetching logic, do so in `data/loader.py`.
 
 **Tip:**
 - Use the existing tabs (such as "US Sectors" or "All-Weather Portfolio") as templates for structure and logic.
