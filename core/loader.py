@@ -4,7 +4,7 @@ import numpy as np
 import concurrent.futures
 import time
 
-from data.fetch import fetch_and_decode
+from core.fetch import fetch_and_decode
 
 @st.cache_data
 def load_data():

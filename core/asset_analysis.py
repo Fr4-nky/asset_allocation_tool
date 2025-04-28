@@ -2,9 +2,9 @@ import pandas as pd
 import datetime
 import re
 import streamlit as st
-from data.processing import merge_asset_with_regimes
-from metrics.performance import generate_trade_log_df, generate_aggregated_metrics
-from viz.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
+from core.processing import merge_asset_with_regimes
+from core.performance import generate_trade_log_df, generate_aggregated_metrics
+from core.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 
 # --- Helper: Compute dynamic cutoff date based on trade log (regime start with N assets) ---
 def get_dynamic_cutoff_date_from_trade_log(trade_log_df, min_assets_required):
@@ -38,7 +38,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     regime_periods = df_start2[['Regime', 'Start', 'End']].to_dict(orient='records')
     # Set xaxis range for normalized asset charts if tab-specific cutoff is used
     xaxis_range = None
-    from config.constants import asset_list_tab3, asset_list_tab6
+    from core.constants import asset_list_tab3, asset_list_tab6
     if asset_list == asset_list_tab3:
         xaxis_range = ["1994-06-30", None]
     elif asset_list == asset_list_tab6:
@@ -69,7 +69,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         print(f"    {asset}: {date}")
     # Use the tab-specific include_late_assets value
     passed_cutoff_date = cutoff_date # Rename argument to avoid confusion
-    from config.constants import asset_list_tab3 # Remove asset_list_tab6 import here
+    from core.constants import asset_list_tab3 # Remove asset_list_tab6 import here
 
     if passed_cutoff_date is not None:
         cutoff_date = passed_cutoff_date # Use the date calculated externally and passed in
@@ -140,7 +140,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
             match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
             if match:
                 r,g,b,_ = match.groups()
-                from config.constants import REGIME_BG_ALPHA
+                from core.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
                 color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
@@ -173,7 +173,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     """, unsafe_allow_html=True)
 
     # Keep conditional footnote from upstream
-    from config.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
+    from core.constants import asset_list_tab3, asset_list_tab5, asset_list_tab6
     if asset_list in [asset_list_tab3, asset_list_tab5, asset_list_tab6]:
         tab.markdown(
             '*If the background color is gray, the trade is not included in the aggregations and the bar charts.*',
@@ -211,7 +211,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
             match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
             if match:
                 r,g,b,_ = match.groups()
-                from config.constants import REGIME_BG_ALPHA
+                from core.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
                 color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
@@ -238,7 +238,6 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     - **Sharpe Ratio (Aggregated):** Aggregated annual return divided by aggregated annual volatility (0% risk-free rate).
     - **Average Max Drawdown:** Mean of the maximum drawdowns observed in each period for each regime-asset group.
     - **Missing Data Handling:** Excludes any missing (NaN) values from all calculations.
-    
     
     
     """, unsafe_allow_html=True)

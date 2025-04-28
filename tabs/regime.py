@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
-from config.constants import asset_colors, regime_bg_colors, regime_labels_dict
+from core.constants import asset_colors, regime_bg_colors, regime_labels_dict
 
 def render(tab, sp_inflation_data):
     """
@@ -309,7 +309,7 @@ def render(tab, sp_inflation_data):
             m = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css)
             if m:
                 r,g,b,_ = m.groups()
-                from config.constants import REGIME_BG_ALPHA
+                from core.constants import REGIME_BG_ALPHA
                 color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
             else:
                 color = f"rgba(200,200,200,{REGIME_BG_ALPHA})"

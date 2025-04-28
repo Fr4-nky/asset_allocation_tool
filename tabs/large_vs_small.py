@@ -1,9 +1,10 @@
 import streamlit as st
 import hashlib
-from config.constants import asset_list_tab3, asset_colors, regime_bg_colors, regime_labels_dict
-from data.processing import merge_asset_with_regimes
-from metrics.performance import generate_trade_log_df
-from ui.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_asset_analysis_tab
+from core.constants import asset_list_tab3, asset_colors, regime_bg_colors, regime_labels_dict
+from core.processing import merge_asset_with_regimes
+from core.performance import generate_trade_log_df
+from core.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_asset_analysis_tab
+from core.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 
 def render(tab, asset_ts_data, sp_inflation_data, session_state):
     min_assets_required = 3
