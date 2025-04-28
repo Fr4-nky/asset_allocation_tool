@@ -14,6 +14,7 @@ import tabs.all_weather  # New import
 import tabs.us_sectors  # New import
 import tabs.factor_investing  # New import
 import tabs.large_vs_small  # New import
+import tabs.cyclical_vs_defensive  # New import
 
 from data.fetch import fetch_and_decode, decode_base64_data
 from data.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
@@ -969,16 +970,11 @@ with tab_objs[2]:
 
 # Tab 4: Cyclical vs. Defensive
 with tab_objs[3]:
-    render_asset_analysis_tab(
+    tabs.cyclical_vs_defensive.render(
         tab_objs[3],
-        "Cyclical vs. Defensive Stocks Across Regimes",
-        asset_list_tab4,
-        asset_colors,
-        regime_bg_colors,
-        regime_labels_dict,
-        sp_inflation_data,
-        asset_ts_data,
-        "Cyclical vs. Defensive"
+        asset_ts_data=asset_ts_data,
+        sp_inflation_data=sp_inflation_data,
+        session_state=st.session_state
     )
 
 # Tab 5: US Sectors
