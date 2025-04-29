@@ -1,11 +1,11 @@
 import hashlib
 import streamlit as st
-import pandas as pd
 from core.constants import asset_list_tab5, asset_colors, regime_bg_colors, regime_labels_dict
 from core.processing import merge_asset_with_regimes
 from core.asset_analysis import render_asset_analysis_tab
 from core.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from core.performance import generate_trade_log_df
+from core.utils import has_gray_trades_due_to_late_start
 
 def render(tab, asset_ts_data, sp_inflation_data, session_state):
     # Only show the second checkbox (late assets) for Sectors tab (tab 5)
@@ -27,11 +27,7 @@ def render(tab, asset_ts_data, sp_inflation_data, session_state):
     # Find gray trades due to late start dates (asset not in eligible_assets_late)
     merged_asset_data_metrics = merge_asset_with_regimes(asset_ts_data, sp_inflation_data)
     trade_log_df = generate_trade_log_df(merged_asset_data_metrics, sp_inflation_data, asset_list_tab5, regime_labels_dict)
-    def is_late_asset_trade(row):
-        asset = row.get('Asset', None)
-        return asset not in eligible_assets_late
-    gray_late_asset_trades = trade_log_df.apply(is_late_asset_trade, axis=1)
-    has_gray_late_asset_trades = gray_late_asset_trades.any()
+    has_gray_late_asset_trades = has_gray_trades_due_to_late_start(trade_log_df, asset_list_tab5, asset_ts_data, cutoff_date)
     if has_gray_late_asset_trades:
         include_late_assets = st.checkbox(
             "also include assets with later start dates in aggregations and bar charts.",

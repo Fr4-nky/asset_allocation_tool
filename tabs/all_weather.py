@@ -1,11 +1,11 @@
 import hashlib
 import streamlit as st
-import pandas as pd
 from core.constants import asset_list_tab7, asset_colors, regime_bg_colors, regime_labels_dict
 from core.processing import merge_asset_with_regimes
 from core.performance import generate_trade_log_df
 from core.charts import plot_asset_performance_over_time, plot_metrics_bar_charts
 from core.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_asset_analysis_tab
+from core.utils import has_gray_trades_due_to_pre_cutoff
 
 def render(tab, asset_ts_data, sp_inflation_data, session_state):
     min_assets_required = 7
@@ -19,23 +19,7 @@ def render(tab, asset_ts_data, sp_inflation_data, session_state):
     pre_cutoff_checkbox_key = f"include_pre_cutoff_trades_all_weather_{hashlib.md5(str(asset_list_tab7).encode()).hexdigest()}"
 
     # Show checkbox only if there are trades that would be excluded (gray) by eligibility logic
-    eligible_assets = [a for a in asset_list_tab7 if a in asset_ts_data.columns]
-    def is_trade_eligible_precise(row):
-        asset = row.get('Asset', None)
-        trade_start_date = row.get('Start Date', None)
-        if isinstance(trade_start_date, str):
-            try:
-                trade_start_date = pd.to_datetime(trade_start_date).date()
-            except Exception:
-                trade_start_date = None
-        if asset not in eligible_assets:
-            return False
-        if trade_start_date is not None and cutoff_date is not None and trade_start_date < cutoff_date and not False:
-            return False
-        return True
-    # Find any trades that would be excluded (gray) with pre_cutoff_override=False
-    excluded_trades = ~trade_log_df.apply(is_trade_eligible_precise, axis=1)
-    has_excluded_trades = excluded_trades.any()
+    has_excluded_trades = has_gray_trades_due_to_pre_cutoff(trade_log_df, asset_list_tab7, asset_ts_data, cutoff_date)
     if has_excluded_trades:
         include_pre_cutoff_trades = st.checkbox(
             checkbox_label,
