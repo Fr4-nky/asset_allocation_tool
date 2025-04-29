@@ -177,7 +177,7 @@ with tab_objs[0]:
     tabs.regime.render(tab_objs[0], sp_inflation_data)
 
 def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_colors, regime_labels_dict, sp_inflation_data, asset_ts_data, include_pre_cutoff_trades=False, include_late_assets=False, cutoff_date=None, eligible_assets=None, tab_title=""):
-    tab.markdown(f"""
+    tab.markdown(r"""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>{title}</h2>
     """, unsafe_allow_html=True)
     # Use the passed include_late_assets argument in filtering logic
@@ -211,7 +211,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         regime_periods=regime_periods,
         xaxis_range=xaxis_range
     )
-    tab.markdown("""
+    tab.markdown(r"""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Trade Log</h2>
     """, unsafe_allow_html=True)
     merged_asset_data_metrics = merged_asset_data.copy()
@@ -320,7 +320,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         use_container_width=True
     )
     # --- FOOTNOTES for Trade Log ---
-    tab.markdown("""
+    tab.markdown(r"""
 **Column Definitions:**
 - **Period Return**: (End Price - Start Price) / Start Price
 - **Volatility**: Standard deviation of monthly returns within the period, annualized (multiplied by $\sqrt{12}$)
@@ -339,7 +339,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         )
 
     # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
-    tab.markdown("""
+    tab.markdown(r"""
     <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
     """, unsafe_allow_html=True)
 
@@ -387,7 +387,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     )
 
     # --- FOOTNOTES for Aggregated Performance Table ---
-    tab.markdown("""
+    tab.markdown(r"""
 **Aggregation & Calculation Notes:**
 - **Annualized Return (Aggregated):** Average of monthly returns for each regime-asset group, annualized by multiplying by 12.
 - **Annualized Volatility (Aggregated):** Standard deviation of those monthly returns, annualized by multiplying by √12.
