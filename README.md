@@ -13,7 +13,7 @@ pip install -r requirements.txt
 ## Running the Application (in the virtual environment)
 
 ```bash
-python -m streamlit run streamlit_app.py
+python3 -m streamlit run streamlit_app.py
 ```
 
 ## Refactored App Structure (April 2025)
