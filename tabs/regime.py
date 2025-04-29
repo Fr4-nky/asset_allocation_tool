@@ -325,43 +325,111 @@ def render(tab, sp_inflation_data):
         use_container_width=True
     )
 
+# <li>S&amp;P 500:
+#     <ul>
+#       <li>Recent Prices: <a href="https://fred.stlouisfed.org/series/SP500" target="_blank">FRED S&amp;P 500</a></li>
+#       <li>From 1928 until 2023: <a href="https://finance.yahoo.com/quote/%5ESPX/history/" target="_blank">Yahoo Finance S&amp;P 500</a></li>
+#       <li>Until 1927: <a href="https://www.multpl.com/s-p-500-historical-prices/table/by-month" target="_blank">Multpl S&amp;P 500</a></li>
+#     </ul>
+#   </li>
+#   <li>Total Return Bond Index:
+#     <ul>
+#       <li>Since 1973: <a href="https://fred.stlouisfed.org/series/BAMLCC0A0CMTRIV" target="_blank">FRED BAMLCC0A0CMTRIV</a></li>
+#       <li>Until 1973: <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3805927" target="_blank">McQuarrie: Where Siegel Went Awry: Outdated Sources &amp; Incomplete Data</a></li>
+#     </ul>
+#   </li>
+#   <li>Gold:
+#     <ul>
+#       <li>Since 2000: <a href="https://finance.yahoo.com/quote/GC=F/" target="_blank">Yahoo Finance: COMEX Gold</a></li>
+#       <li>Until 2000: <a href="https://onlygold.com/gold-prices/historical-gold-prices/" target="_blank">OnlyGold: Historical Prices</a></li>
+#     </ul>
+#   </li>
+#   <li>Inflation:
+#     <ul>
+#       <li>Latest data point: <a href="https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting" target="_blank">Cleveland Fed: Inflation Nowcasting</a></li>
+#       <li>Since 1913: <a href="https://fred.stlouisfed.org/series/CPIAUCNS" target="_blank">FRED: CPI</a></li>
+#       <li>Until 1913: <a href="http://www.econ.yale.edu/~shiller/data.htm" target="_blank">Yale University: Online Data Robert Shiller</a></li>
+#     </ul>
+#   </li>
+
     # --- DATA SOURCES SECTION ---
     st.markdown("""
 ----
-<h2>Data Sources</h2>
+<h2>Data Sources by Tab</h2>
 <ul>
-  <li>Raw Data URLs Used in This App:
+  <li><b>Regime Visualization Tab</b>
     <ul>
       <li>S&amp;P 500 Data: <a href="https://www.longtermtrends.net/data-sp500-since-1871/" target="_blank">longtermtrends.net/data-sp500-since-1871/</a></li>
       <li>Inflation Rate Data: <a href="https://www.longtermtrends.net/data-inflation-forecast/" target="_blank">longtermtrends.net/data-inflation-forecast/</a></li>
+    </ul>
+  </li>
+  <li><b>Asset Classes Tab</b>
+    <ul>
+      <li>S&amp;P 500 Data: <a href="https://www.longtermtrends.net/data-sp500-since-1871/" target="_blank">longtermtrends.net/data-sp500-since-1871/</a></li>
       <li>Total Return Bond Index Data: <a href="https://www.longtermtrends.net/data-total-return-bond-index/" target="_blank">longtermtrends.net/data-total-return-bond-index/</a></li>
       <li>Gold Price Data: <a href="https://www.longtermtrends.net/data-gold-since-1792/" target="_blank">longtermtrends.net/data-gold-since-1792/</a></li>
     </ul>
   </li>
-  <li>S&amp;P 500:
+  <li><b>Large vs. Small Cap Tab</b>
     <ul>
-      <li>Recent Prices: <a href="https://fred.stlouisfed.org/series/SP500" target="_blank">FRED S&amp;P 500</a></li>
-      <li>From 1928 until 2023: <a href="https://finance.yahoo.com/quote/%5ESPX/history/" target="_blank">Yahoo Finance S&amp;P 500</a></li>
-      <li>Until 1927: <a href="https://www.multpl.com/s-p-500-historical-prices/table/by-month" target="_blank">Multpl S&amp;P 500</a></li>
+      <li>MSCI USA Large Cap: <a href="https://www.longtermtrends.net/data-msci-usa-large-cap/" target="_blank">longtermtrends.net/data-msci-usa-large-cap/</a></li>
+      <li>MSCI USA Mid Cap: <a href="https://www.longtermtrends.net/data-msci-usa-mid-cap/" target="_blank">longtermtrends.net/data-msci-usa-mid-cap/</a></li>
+      <li>MSCI USA Small Cap: <a href="https://www.longtermtrends.net/data-msci-usa-small-cap/" target="_blank">longtermtrends.net/data-msci-usa-small-cap/</a></li>
+      <li>MSCI USA Micro Cap: <a href="https://www.longtermtrends.net/data-msci-usa-micro-cap/" target="_blank">longtermtrends.net/data-msci-usa-micro-cap/</a></li>
     </ul>
   </li>
-  <li>Total Return Bond Index:
+  <li><b>Cyclical vs. Defensive Tab</b>
     <ul>
-      <li>Since 1973: <a href="https://fred.stlouisfed.org/series/BAMLCC0A0CMTRIV" target="_blank">FRED BAMLCC0A0CMTRIV</a></li>
-      <li>Until 1973: <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3805927" target="_blank">McQuarrie: Where Siegel Went Awry: Outdated Sources &amp; Incomplete Data</a></li>
+      <li>MSCI USA Cyclical Stocks: <a href="https://www.longtermtrends.net/data-msci-cyclical-stocks/" target="_blank">longtermtrends.net/data-msci-cyclical-stocks/</a></li>
+      <li>MSCI USA Defensive Stocks: <a href="https://www.longtermtrends.net/data-msci-defensive-stocks/" target="_blank">longtermtrends.net/data-msci-defensive-stocks/</a></li>
+      <li>MSCI USA Large Cap: <a href="https://www.longtermtrends.net/data-msci-usa-large-cap/" target="_blank">longtermtrends.net/data-msci-usa-large-cap/</a></li>
+      <li>MSCI USA Mid Cap: <a href="https://www.longtermtrends.net/data-msci-usa-mid-cap/" target="_blank">longtermtrends.net/data-msci-usa-mid-cap/</a></li>
+      <li>MSCI USA Small Cap: <a href="https://www.longtermtrends.net/data-msci-usa-small-cap/" target="_blank">longtermtrends.net/data-msci-usa-small-cap/</a></li>
+      <li>MSCI USA Micro Cap: <a href="https://www.longtermtrends.net/data-msci-usa-micro-cap/" target="_blank">longtermtrends.net/data-msci-usa-micro-cap/</a></li>
     </ul>
   </li>
-  <li>Gold:
+  <li><b>US Sectors Tab</b>
     <ul>
-      <li>Since 2000: <a href="https://finance.yahoo.com/quote/GC=F/" target="_blank">Yahoo Finance: COMEX Gold</a></li>
-      <li>Until 2000: <a href="https://onlygold.com/gold-prices/historical-gold-prices/" target="_blank">OnlyGold: Historical Prices</a></li>
+      <li>US Communication Services: <a href="https://www.longtermtrends.net/data-us-communication-services/" target="_blank">longtermtrends.net/data-us-communication-services/</a></li>
+      <li>US Basic Materials: <a href="https://www.longtermtrends.net/data-us-basic-materials/" target="_blank">longtermtrends.net/data-us-basic-materials/</a></li>
+      <li>US Energy: <a href="https://www.longtermtrends.net/data-us-energy/" target="_blank">longtermtrends.net/data-us-energy/</a></li>
+      <li>US Financial: <a href="https://www.longtermtrends.net/data-us-financial/" target="_blank">longtermtrends.net/data-us-financial/</a></li>
+      <li>US Industrial: <a href="https://www.longtermtrends.net/data-us-industrial/" target="_blank">longtermtrends.net/data-us-industrial/</a></li>
+      <li>US Technology: <a href="https://www.longtermtrends.net/data-us-technology/" target="_blank">longtermtrends.net/data-us-technology/</a></li>
+      <li>US Consumer Staples: <a href="https://www.longtermtrends.net/data-us-consumer-staples/" target="_blank">longtermtrends.net/data-us-consumer-staples/</a></li>
+      <li>US Utilities: <a href="https://www.longtermtrends.net/data-us-utiliiies/" target="_blank">longtermtrends.net/data-us-utiliiies/</a></li>
+      <li>US Health Care: <a href="https://www.longtermtrends.net/data-us-thcare/" target="_blank">longtermtrends.net/data-us-thcare/</a></li>
+      <li>US Consumer Discretionary: <a href="https://www.longtermtrends.net/data-us-consumer-discretionary/" target="_blank">longtermtrends.net/data-us-consumer-discretionary/</a></li>
+      <li>US Real Estate: <a href="https://www.longtermtrends.net/data-us-real-estate/" target="_blank">longtermtrends.net/data-us-real-estate/</a></li>
     </ul>
   </li>
-  <li>Inflation:
+  <li><b>Factor Investing Tab</b>
     <ul>
-      <li>Latest data point: <a href="https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting" target="_blank">Cleveland Fed: Inflation Nowcasting</a></li>
-      <li>Since 1913: <a href="https://fred.stlouisfed.org/series/CPIAUCNS" target="_blank">FRED: CPI</a></li>
-      <li>Until 1913: <a href="http://www.econ.yale.edu/~shiller/data.htm" target="_blank">Yale University: Online Data Robert Shiller</a></li>
+      <li>MSCI World Momentum: <a href="https://www.longtermtrends.net/data-msci-world-momentum/" target="_blank">longtermtrends.net/data-msci-world-momentum/</a></li>
+      <li>MSCI World Growth Target: <a href="https://www.longtermtrends.net/data-msci-world-growth-target/" target="_blank">longtermtrends.net/data-msci-world-growth-target/</a></li>
+      <li>MSCI World Quality: <a href="https://www.longtermtrends.net/data-msci-world-quality/" target="_blank">longtermtrends.net/data-msci-world-quality/</a></li>
+      <li>MSCI World Governance Quality: <a href="https://www.longtermtrends.net/data-msci-world-governance-quality/" target="_blank">longtermtrends.net/data-msci-world-governance-quality/</a></li>
+      <li>MSCI World Dividend Masters: <a href="https://www.longtermtrends.net/data-msci-world-dividend-masters/" target="_blank">longtermtrends.net/data-msci-world-dividend-masters/</a></li>
+      <li>MSCI World High Dividend Yield: <a href="https://www.longtermtrends.net/data-msci-world-high-dividend-yield/" target="_blank">longtermtrends.net/data-msci-world-high-dividend-yield/</a></li>
+      <li>MSCI World Buyback Yield: <a href="https://www.longtermtrends.net/data-msci-world-buy-back-yield/" target="_blank">longtermtrends.net/data-msci-world-buy-back-yield/</a></li>
+      <li>MSCI World Total Shareholder Yield: <a href="https://www.longtermtrends.net/data-msci-world-total-shareholder-yield/" target="_blank">longtermtrends.net/data-msci-world-total-shareholder-yield/</a></li>
+      <li>MSCI World Small Cap: <a href="https://www.longtermtrends.net/data-msci-world-small-cap/" target="_blank">longtermtrends.net/data-msci-world-small-cap/</a></li>
+      <li>MSCI World Equal Weighted: <a href="https://www.longtermtrends.net/data-msci-world-equal-weighted/" target="_blank">longtermtrends.net/data-msci-world-equal-weighted/</a></li>
+      <li>MSCI World Enhanced Value: <a href="https://www.longtermtrends.net/data-msci-world-enhanced-value/" target="_blank">longtermtrends.net/data-msci-world-enhanced-value/</a></li>
+      <li>MSCI World Prime Value: <a href="https://www.longtermtrends.net/data-msci-world-prime-value/" target="_blank">longtermtrends.net/data-msci-world-prime-value/</a></li>
+      <li>MSCI World Minimum Volatility (USD): <a href="https://www.longtermtrends.net/data-msci-minimum-volatility/" target="_blank">longtermtrends.net/data-msci-minimum-volatility/</a></li>
+      <li>MSCI World Risk Weighted: <a href="https://www.longtermtrends.net/data-msci-world-risk-weighted/" target="_blank">longtermtrends.net/data-msci-world-risk-weighted/</a></li>
+    </ul>
+  </li>
+  <li><b>All-Weather Portfolio Tab</b>
+    <ul>
+      <li>SPDR S&amp;P 500 ETF (SPY): <a href="https://www.longtermtrends.net/data-yfin-spy/" target="_blank">longtermtrends.net/data-yfin-spy/</a></li>
+      <li>Vanguard Total World Stock Index Fund ETF Shares (VT): <a href="https://www.longtermtrends.net/data-yfin-vt/" target="_blank">longtermtrends.net/data-yfin-vt/</a></li>
+      <li>iShares 20+ Year Treasury Bond ETF (TLT): <a href="https://www.longtermtrends.net/data-yfin-tlt/" target="_blank">longtermtrends.net/data-yfin-tlt/</a></li>
+      <li>iShares 7-10 Year Treasury Bond ETF (IEF): <a href="https://www.longtermtrends.net/data-yfin-ief/" target="_blank">longtermtrends.net/data-yfin-ief/</a></li>
+      <li>iShares TIPS Bond ETF (TIP): <a href="https://www.longtermtrends.net/data-yfin-tip/" target="_blank">longtermtrends.net/data-yfin-tip/</a></li>
+      <li>Invesco DB Commodity Index Tracking Fund (DBC): <a href="https://www.longtermtrends.net/data-yfin-dbc/" target="_blank">longtermtrends.net/data-yfin-dbc/</a></li>
+      <li>SPDR Gold Shares (GLD): <a href="https://www.longtermtrends.net/data-yfin-gld/" target="_blank">longtermtrends.net/data-yfin-gld/</a></li>
     </ul>
   </li>
 </ul>
