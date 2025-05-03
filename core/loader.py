@@ -112,6 +112,15 @@ def load_data():
                 print(f"ERROR fetching {name}: {e}")
                 results[name] = None
 
+    # --- Check for failed loads and warn user ---
+    failed_loads = []
+    for name, df in results.items():
+        if df is None:
+            failed_loads.append(name)
+            print(f"LOADER_WARNING: Failed to load data for '{name}'.")
+    if failed_loads:
+        st.warning(f"Could not load data for the following assets after retries: {', '.join(failed_loads)}. They will be excluded from the analysis.")
+
     # Unpack results
     df_sp500 = results.get('S&P 500')
     df_inflation = results.get('Inflation Rate')
