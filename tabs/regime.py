@@ -446,3 +446,15 @@ def render(tab, sp_inflation_data):
   </li>
 </ul>
 """, unsafe_allow_html=True)
+
+    # --- FURTHER INFORMATION SECTION ---
+    st.markdown("""
+----
+<h2>Further Information</h2>
+<ul>
+  <li><a href="https://app.hedgeye.com/insights/81549-risk-report-a-quad-4-investing-playbook" target="_blank">Risk Report: A Quad 4 Investing Playbook</a></li>
+  <li><a href="https://cssanalytics.wordpress.com/2025/03/20/the-growth-and-inflation-sector-timing-model/" target="_blank">The Growth and Inflation Sector Timing Model</a></li>
+  <li><a href="https://simplywall.st/article/protecting-capital-with-the-all-weather-portfolio-strategy?utm_source=braze&utm_medium=email&utm_campaign=Market+Insights&utm_content=Email" target="_blank">Protecting Capital with the All-Weather Portfolio Strategy</a></li>
+  <li><a href="https://www.bridgewater.com/research-and-insights/the-all-weather-story" target="_blank">The All Weather Story</a></li>
+</ul>
+""", unsafe_allow_html=True)
