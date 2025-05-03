@@ -165,14 +165,24 @@ def render(tab, sp_inflation_data):
     for col in ['S&P 500', 'S&P 500 MA', 'Inflation Rate', 'Inflation Rate MA']:
         if col not in window_df.columns:
             window_df[col] = np.nan
+
+    date_span = "N/A" # Default value
     if not window_df.empty:
-        date_start = window_df['DateTime'].iloc[0].strftime('%Y-%m-%d')
-        date_end = window_df['DateTime'].iloc[-1].strftime('%Y-%m-%d')
-        date_span = f"{date_start} to {date_end}"
-    else:
-        date_span = "N/A"
+        first_date = window_df['DateTime'].iloc[0]
+        last_date = window_df['DateTime'].iloc[-1]
+        
+        # Check if dates are valid before formatting
+        if pd.notna(first_date) and pd.notna(last_date):
+            date_start = first_date.strftime('%Y-%m-%d')
+            date_end = last_date.strftime('%Y-%m-%d')
+            date_span = f"{date_start} to {date_end}"
+        elif pd.notna(last_date): # Handle case where only last date is valid
+             date_end = last_date.strftime('%Y-%m-%d')
+             date_span = f"Up to {date_end}"
+        # If first_date is NaT or both are NaT, date_span remains "N/A"
+
     by_cmap = LinearSegmentedColormap.from_list('by', ['black', 'yellow'], N=window_size)
-    colors = [mcolors.to_hex(by_cmap(i/(window_size-1))) for i in range(len(window_df))]
+    colors = [mcolors.to_hex(by_cmap(i/(window_size-1))) for i in range(len(window_df)) if not window_df.empty] # Added check
     scatter_fig = go.Figure()
     x_min = float(window_df['S&P 500 MA Pct Change'].min()) if not window_df.empty else -1
     x_max = float(window_df['S&P 500 MA Pct Change'].max()) if not window_df.empty else 1
