@@ -190,6 +190,30 @@ def load_data():
     df_inflation_resampled = resample_and_correct_date(df_inflation, 'Inflation Rate')
     df_bonds_resampled = resample_and_correct_date(df_bonds, 'Bonds')
     df_gold_resampled = resample_and_correct_date(df_gold, 'Gold')
+
+    # --- Interpolate Inflation Data to fill BME gaps ---
+    df_inflation_interpolated = None
+    if df_inflation_resampled is not None and not df_inflation_resampled.empty:
+        print(f"DEBUG: Inflation resampled shape before interpolation: {df_inflation_resampled.shape}")
+        print(f"DEBUG: Inflation resampled head before interpolation:\n{df_inflation_resampled.head()}")
+        print(f"DEBUG: Inflation resampled tail before interpolation:\n{df_inflation_resampled.tail()}")
+        col = df_inflation_resampled.columns[0]
+        # Ensure index is datetime and sorted
+        df_inflation_resampled = df_inflation_resampled.sort_index()
+        # Interpolate missing values (time-based)
+        df_inflation_interpolated = df_inflation_resampled.copy()
+        df_inflation_interpolated[col] = df_inflation_interpolated[col].interpolate(method='time')
+        print(f"DEBUG: Inflation after interpolation head:\n{df_inflation_interpolated.head()}")
+        print(f"DEBUG: Inflation after interpolation tail:\n{df_inflation_interpolated.tail()}")
+        # Interpolation alone is sufficient; no ffill/bfill needed
+        # Confirm no NaNs remain after interpolation
+        print(f"DEBUG: Inflation after interpolation (final, no ffill/bfill) head:\n{df_inflation_interpolated.head()}")
+        print(f"DEBUG: Inflation after interpolation (final, no ffill/bfill) tail:\n{df_inflation_interpolated.tail()}")
+        # Keep the column name as 'Inflation Rate' for merging
+        df_inflation_interpolated.columns = ['Inflation Rate']
+        print(f"DEBUG: Inflation interpolated columns: {df_inflation_interpolated.columns.tolist()}")
+
+
     df_msci_large_resampled = resample_and_correct_date(df_msci_large, 'MSCI USA Large Cap')
     df_msci_mid_resampled = resample_and_correct_date(df_msci_mid, 'MSCI USA Mid Cap')
     df_msci_small_resampled = resample_and_correct_date(df_msci_small, 'MSCI USA Small Cap')
@@ -231,12 +255,20 @@ def load_data():
 
     # 2. Inner merge S&P 500 and Inflation Rate
     sp_inflation_df = pd.DataFrame()
-    if df_sp500_resampled is not None and df_inflation_resampled is not None:
-        if df_sp500_resampled.index.name != df_inflation_resampled.index.name:
+    if df_sp500_resampled is not None and df_inflation_interpolated is not None:
+        if df_sp500_resampled.index.name != df_inflation_interpolated.index.name:
             common_index_name = df_sp500_resampled.index.name or 'Date'
             df_sp500_resampled.index.name = common_index_name
-            df_inflation_resampled.index.name = common_index_name
-        sp_inflation_df = pd.merge(df_sp500_resampled, df_inflation_resampled, left_index=True, right_index=True, how='inner')
+            df_inflation_interpolated.index.name = common_index_name
+        sp_inflation_df = pd.merge(df_sp500_resampled, df_inflation_interpolated, left_index=True, right_index=True, how='inner')
+    # If only one is present, fallback as before
+    elif df_sp500_resampled is not None:
+        sp_inflation_df = df_sp500_resampled.copy()
+        sp_inflation_df['Inflation Rate'] = np.nan
+    elif df_inflation_interpolated is not None:
+        sp_inflation_df = df_inflation_interpolated.copy()
+        sp_inflation_df['S&P 500'] = np.nan
+
     elif df_sp500_resampled is not None:
         sp_inflation_df = df_sp500_resampled.copy()
         sp_inflation_df['Inflation Rate'] = np.nan
