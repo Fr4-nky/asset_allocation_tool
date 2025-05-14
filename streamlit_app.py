@@ -38,7 +38,7 @@ email = query_params['email']
 verify_endpoint = (
     f"{API_BASE_URL}/community/verify-user-identity/?email={email}"
     if API_BASE_URL
-    else "http://localhost:8000/community/verify-user-identity"
+    else "http://localhost:8000/community/verify-user-identity?email={email}"
 )
 
 response = requests.get(verify_endpoint)
