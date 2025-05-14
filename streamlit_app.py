@@ -17,6 +17,7 @@ import tabs.large_vs_small  # New import
 import tabs.cyclical_vs_defensive  # New import
 import tabs.asset_classes  # New import
 import tabs.regime  # New import
+import requests  # For making API calls
 
 from core.fetch import fetch_and_decode, decode_base64_data
 from core.processing import merge_asset_with_regimes, compute_moving_average, compute_growth, assign_regimes
@@ -25,6 +26,12 @@ from core.performance import generate_aggregated_metrics
 from core.constants import asset_colors, regime_bg_colors, regime_legend_colors, regime_labels_dict, asset_list_tab2, asset_list_tab3, asset_list_tab4, asset_list_tab5, asset_list_tab6, asset_list_tab7, regime_definitions, REGIME_BG_ALPHA
 from core.loader import load_data
 from core.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_asset_analysis_tab
+
+# Verify user identity before loading the app
+response = requests.get('https://example.com/verify-user-identity')
+if response.status_code != 200 or not response.json().get('verified', False):
+    st.error("User verification failed. You are not authorized to access this application.")
+    st.stop()
 
 # Set page configuration
 st.set_page_config(
