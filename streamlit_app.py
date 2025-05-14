@@ -36,7 +36,7 @@ query_params = st.query_params
 email = query_params['email']
 
 verify_endpoint = (
-    f"{API_BASE_URL}/community/verify-user-identity/&email={email}"
+    f"{API_BASE_URL}/community/verify-user-identity/?email={email}"
     if API_BASE_URL
     else "http://localhost:8000/community/verify-user-identity"
 )
