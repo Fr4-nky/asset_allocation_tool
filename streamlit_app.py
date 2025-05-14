@@ -36,13 +36,13 @@ query_params = st.query_params
 email = query_params['email']
 
 verify_endpoint = (
-    f"{API_BASE_URL}/community/verify-user-identity/?email={email}"
+    f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
     if API_BASE_URL
-    else "http://localhost:8000/community/verify-user-identity?email={email}"
+    else "http://localhost:8000/community/verify-user-membership?email={email}"
 )
 
 response = requests.get(verify_endpoint)
-if response.status_code != 200 or not response.json().get("verified", False):
+if response.status_code != 200 or not response.json().get("is_premium_member", False):
     st.error(
         "User verification failed. You are not authorized to access this application."
     )
