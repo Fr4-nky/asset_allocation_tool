@@ -27,8 +27,13 @@ from core.constants import asset_colors, regime_bg_colors, regime_legend_colors,
 from core.loader import load_data
 from core.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_asset_analysis_tab
 
-# Verify user identity before loading the app
-response = requests.get('https://example.com/verify-user-identity')
+
+# --- User Authentication ---
+from config import API_BASE_URL
+
+
+verify_endpoint = f"{API_BASE_URL}/verify-user-identity" if API_BASE_URL else "https://example.com/verify-user-identity"
+response = requests.get(verify_endpoint)
 if response.status_code != 200 or not response.json().get('verified', False):
     st.error("User verification failed. You are not authorized to access this application.")
     st.stop()
