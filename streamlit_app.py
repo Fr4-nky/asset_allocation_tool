@@ -29,26 +29,26 @@ from core.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_a
 
 
 # --- User Authentication ---
-from config import API_BASE_URL
+from config import API_BASE_URL,AUTHENTICATION_REQUIRED
+
+if AUTHENTICATION_REQUIRED:
+    query_params = st.query_params
+
+    email = query_params["email", 0] if "email" in query_params else None
 
 
-query_params = st.query_params
-
-email = query_params["email", 0] if "email" in query_params else None
-
-
-verify_endpoint = (
-    f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
-    if API_BASE_URL
-    else "http://localhost:8000/community/verify-user-membership?email={email}"
-)
-
-response = requests.get(verify_endpoint)
-if response.status_code != 200 or not response.json().get("is_premium_member", False):
-    st.error(
-        "User verification failed. You are not authorized to access this application."
+    verify_endpoint = (
+        f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
+        if API_BASE_URL
+        else "http://localhost:8000/community/verify-user-membership?email={email}"
     )
-    st.stop()
+
+    response = requests.get(verify_endpoint)
+    if response.status_code != 200 or not response.json().get("is_premium_member", False):
+        st.error(
+            "User verification failed. You are not authorized to access this application."
+        )
+        st.stop()
 
 # Set page configuration
 st.set_page_config(
