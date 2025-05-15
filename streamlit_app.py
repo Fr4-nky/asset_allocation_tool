@@ -34,7 +34,7 @@ from config import API_BASE_URL,DEBUG
 if DEBUG:
     query_params = st.query_params
 
-    email = query_params["email", 0] if "email" in query_params else None
+    email = query_params["email"] if "email" in query_params else None
 
 
     verify_endpoint = (
