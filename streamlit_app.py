@@ -29,9 +29,9 @@ from core.asset_analysis import get_dynamic_cutoff_date_from_trade_log, render_a
 
 
 # --- User Authentication ---
-from config import API_BASE_URL,AUTHENTICATION_REQUIRED
+from config import API_BASE_URL,DEBUG
 
-if AUTHENTICATION_REQUIRED:
+if DEBUG:
     query_params = st.query_params
 
     email = query_params["email", 0] if "email" in query_params else None
