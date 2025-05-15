@@ -181,64 +181,63 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         )
 
     # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
-    tab.markdown("""
-    <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
-    """, unsafe_allow_html=True)
+    show_aggregated_metrics = True  # Set this variable to True to display the section
 
-    # Use eligible_assets for aggregated metrics and bar charts (from upstream)
-    avg_metrics_table = generate_aggregated_metrics(filtered_trade_log_df, merged_asset_data_metrics, eligible_assets, regime_labels_dict)
-    avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown']
-    avg_metrics_table = avg_metrics_table[avg_metrics_table['Asset'].isin(eligible_assets)]
-    avg_metrics_table = avg_metrics_table.reset_index(drop=True)
-    regime_order = [regime_labels_dict[k] for k in [2,1,4,3]]
-    asset_order = eligible_assets # Use eligible assets for ordering
+    if show_aggregated_metrics:
+        tab.markdown("""
+        <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
+        """, unsafe_allow_html=True)
 
-    # Keep common formatting/ordering logic
-    avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
-    avg_metrics_table['Asset'] = pd.Categorical(avg_metrics_table['Asset'], categories=asset_order, ordered=True)
-    avg_metrics_table = avg_metrics_table.sort_values(['Regime','Asset']).reset_index(drop=True)
+        avg_metrics_table = generate_aggregated_metrics(filtered_trade_log_df, merged_asset_data_metrics, eligible_assets, regime_labels_dict)
+        avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown']
+        avg_metrics_table = avg_metrics_table[avg_metrics_table['Asset'].isin(eligible_assets)]
+        avg_metrics_table = avg_metrics_table.reset_index(drop=True)
+        regime_order = [regime_labels_dict[k] for k in [2,1,4,3]]
+        asset_order = eligible_assets  # Use eligible assets for ordering
 
-    # Display the formatted table
-    def highlight_regime_avg(row):
-        regime_label = row['Regime']
-        regime_num = None
-        for k, v in regime_labels_dict.items():
-            if v == regime_label:
-                regime_num = k
-                break
-        css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
-        if css_rgba.startswith('rgba'):
-            match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
-            if match:
-                r,g,b,_ = match.groups()
-                from core.constants import REGIME_BG_ALPHA
-                color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
+        avg_metrics_table['Regime'] = pd.Categorical(avg_metrics_table['Regime'], categories=regime_order, ordered=True)
+        avg_metrics_table['Asset'] = pd.Categorical(avg_metrics_table['Asset'], categories=asset_order, ordered=True)
+        avg_metrics_table = avg_metrics_table.sort_values(['Regime','Asset']).reset_index(drop=True)
+
+        def highlight_regime_avg(row):
+            regime_label = row['Regime']
+            regime_num = None
+            for k, v in regime_labels_dict.items():
+                if v == regime_label:
+                    regime_num = k
+                    break
+            css_rgba = regime_bg_colors.get(regime_num, '#eeeeee')
+            if css_rgba.startswith('rgba'):
+                match = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', css_rgba)
+                if match:
+                    r, g, b, _ = match.groups()
+                    from core.constants import REGIME_BG_ALPHA
+                    color = f"rgba({r},{g},{b},{REGIME_BG_ALPHA})"
+                else:
+                    color = f"rgba(200,200,200,{REGIME_BG_ALPHA})"  # Fallback
             else:
-                color = f"rgba(200,200,200,{REGIME_BG_ALPHA})" # Fallback
-        else:
-            color = '#eeeeee'
-        return [f'background-color: {color}'] * len(row)
+                color = '#eeeeee'
+            return [f'background-color: {color}'] * len(row)
 
-    tab.dataframe(
-        avg_metrics_table.style
-            .format({
-                'Annualized Return (Aggregated)': '{:.2%}',
-                'Annualized Volatility (Aggregated)': '{:.2%}',
-                'Sharpe Ratio (Aggregated)': '{:.2f}',
-                'Average Max Drawdown (Period Avg)': '{:.2%}'
-            })
-            .apply(highlight_regime_avg, axis=1),
-        use_container_width=True
-    )
-    # --- FOOTNOTES for Aggregated Performance Table ---
-    tab.markdown("""
-    **Aggregation & Calculation Notes:**
-    - **Annualized Return (Aggregated):** Average of monthly returns for each regime-asset group, annualized by multiplying by 12.
-    - **Annualized Volatility (Aggregated):** Standard deviation of those monthly returns, annualized by multiplying by √12.
-    - **Sharpe Ratio (Aggregated):** Aggregated annual return divided by aggregated annual volatility (0% risk-free rate).
-    - **Average Max Drawdown:** Mean of the maximum drawdowns observed in each period for each regime-asset group.
-    - **Missing Data Handling:** Excludes any missing (NaN) values from all calculations.
-    
-    
-    """, unsafe_allow_html=True)
-    plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
+        tab.dataframe(
+            avg_metrics_table.style
+                .format({
+                    'Annualized Return (Aggregated)': '{:.2%}',
+                    'Annualized Volatility (Aggregated)': '{:.2%}',
+                    'Sharpe Ratio (Aggregated)': '{:.2f}',
+                    'Average Max Drawdown (Period Avg)': '{:.2%}'
+                })
+                .apply(highlight_regime_avg, axis=1),
+            use_container_width=True
+        )
+
+        tab.markdown("""
+        **Aggregation & Calculation Notes:**
+        - **Annualized Return (Aggregated):** Average of monthly returns for each regime-asset group, annualized by multiplying by 12.
+        - **Annualized Volatility (Aggregated):** Standard deviation of those monthly returns, annualized by multiplying by √12.
+        - **Sharpe Ratio (Aggregated):** Aggregated annual return divided by aggregated annual volatility (0% risk-free rate).
+        - **Average Max Drawdown:** Mean of the maximum drawdowns observed in each period for each regime-asset group.
+        - **Missing Data Handling:** Excludes any missing (NaN) values from all calculations.
+        """, unsafe_allow_html=True)
+
+        plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
