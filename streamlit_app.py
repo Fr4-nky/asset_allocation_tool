@@ -33,7 +33,9 @@ from config import API_BASE_URL
 
 
 query_params = st.query_params
-email = query_params['email']
+
+email = query_params["email", 0] if "email" in query_params else None
+
 
 verify_endpoint = (
     f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
