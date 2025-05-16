@@ -181,9 +181,10 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         )
 
     # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
-    is_premium_user = st.session_state.get('is_premium_user', False)  # Check if the user is a premium user
-    show_aggregated_metrics = is_premium_user  # Set this variable to True only for premium users
 
+    show_aggregated_metrics = st.session_state.is_premium_user
+    print(f"[DEBUG] show_aggregated_metrics for tab '{title}': {show_aggregated_metrics}")
+    
     if show_aggregated_metrics:
         tab.markdown("""
         <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
