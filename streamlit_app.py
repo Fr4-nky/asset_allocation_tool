@@ -43,16 +43,7 @@ verify_endpoint = (
 
 response = requests.get(verify_endpoint)
 st.session_state.is_premium_user  = response.json().get("is_premium_member", False)
-if response.status_code != 200 or not response.json().get("is_premium_member", False):
-    print('---------------------------------------------------------------')
-    print(response.json())
-    
-    print(f"is_premium_member: {st.session_state.is_premium_user}")
-    
-    # st.error(
-    #     "User verification failed. You are not authorized to access this application."
-    # )
-    # st.stop()
+
 
 # Set page configuration
 st.set_page_config(
