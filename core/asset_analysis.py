@@ -244,6 +244,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 
         plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
     else:
+        # Create a JavaScript that logs parent URL information instead of navigating
         tab.markdown("""
         <div style="padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #F6F6F6; border-radius: 0.5rem; height: 24rem; margin: 1rem 0;">
             <div style="margin-bottom: 1rem;">
@@ -255,7 +256,16 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
             <div style="font-weight: 300; text-align: center; margin-bottom: 1.5rem;">
                Unlock aggregated performance metrics!
             </div>
-            <a href="/pricing" style="background-color: #2563eb; color: white; padding: 0.75rem 2.5rem; border-radius: 0.75rem; font-weight: 300; text-decoration: none; display: inline-block;">
+            <a href="javascript:void(function(){
+                try {
+                    console.log('Parent URL:', window.parent.location.href);
+                    console.log('Parent Origin:', window.parent.location.origin);
+                    console.log('Target URL would be:', window.parent.location.origin + '/community/');
+                } catch(e) {
+                    console.error('Error accessing parent window:', e);
+                }
+            }())" 
+               style="background-color: #2563eb; color: white; padding: 0.75rem 2.5rem; border-radius: 0.75rem; font-weight: 300; text-decoration: none; display: inline-block; cursor: pointer;">
                 Become a Member
             </a>
         </div>
