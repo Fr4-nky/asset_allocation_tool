@@ -1,4 +1,8 @@
 [logger]
 level = "error"
+
 [theme]
 base = "light"
+
+[client]
+toolbarMode = "minimal"
