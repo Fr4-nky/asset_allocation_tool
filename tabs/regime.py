@@ -160,7 +160,7 @@ def render(tab, sp_inflation_data):
     derivative_df = sp_inflation_data[['DateTime', 'S&P 500 MA Growth', 'Inflation Rate MA Growth', 'Regime']].dropna().copy()
     derivative_df['S&P 500 MA Pct Change'] = sp_inflation_data['S&P 500 MA'].pct_change()
     derivative_df = derivative_df.sort_values('DateTime').reset_index(drop=True)
-    window_size = 50
+    window_size = 54
     window_df = derivative_df.iloc[-window_size:].copy()
     for col in ['S&P 500', 'S&P 500 MA', 'Inflation Rate', 'Inflation Rate MA']:
         if col not in window_df.columns:
@@ -361,8 +361,36 @@ def render(tab, sp_inflation_data):
 # https://finance.yahoo.com/quote/GLD/
 
 
+    # --- FURTHER INFORMATION SECTION ---
+    st.markdown("""
+----
+<h2>Further Information</h2>
+<ul>
+  <li><a href="https://app.hedgeye.com/insights/81549-risk-report-a-quad-4-investing-playbook" target="_blank">Risk Report: A Quad 4 Investing Playbook</a></li>
+  <li><a href="https://cssanalytics.wordpress.com/2025/03/20/the-growth-and-inflation-sector-timing-model/" target="_blank">The Growth and Inflation Sector Timing Model</a></li>
+  <li><a href="https://simplywall.st/article/protecting-capital-with-the-all-weather-portfolio-strategy?utm_source=braze&utm_medium=email&utm_campaign=Market+Insights&utm_content=Email" target="_blank">Protecting Capital with the All-Weather Portfolio Strategy</a></li>
+  <li><a href="https://www.bridgewater.com/research-and-insights/the-all-weather-story" target="_blank">The All Weather Story</a></li>
+</ul>
+""", unsafe_allow_html=True)
 
+    # --- DATA PROCESSING & LIMITATIONS SECTION ---
+    st.markdown("""
+----
+<h2>How Data is Fetched and Processed</h2>
+<ul>
+  <li>Firstly, all asset data is fetched from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a> at app startup.</li>
+  <li>Secondly, each dataset is resampled to business month end (BME).</li>
+  <li>Thirdly, inflation data is extended: the latest official CPI data is supplemented with the <a href='https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' target='_blank'>Cleveland Fed Nowcast</a>. The gap between the last official CPI and the nowcast is interpolated to provide a continuous series. The nowcast is an estimate and will be corrected when the next official CPI is released.</li>
+  <li>Subsequently, moving averages and growth rates are calculated for both the S&P 500 and inflation data.</li>
+  <li>Lastly, regimes are identified using these moving averages, and asset performance is then calculated for each regime.</li>
+</ul>
 
+<h2>Limitations</h2>
+<ul>
+  <li>The nowcast inflation data point is an estimation and will be corrected once official CPI numbers are released, which can impact regime identification and asset performance metrics per regime.</li>
+  <li>The resampling to business month end (BME) can also impact regime identification and asset performance metrics per regime.</li>
+</ul>
+""", unsafe_allow_html=True)
 
     # --- DATA SOURCES SECTION ---
     st.markdown("""
@@ -444,49 +472,5 @@ def render(tab, sp_inflation_data):
       <li>SPDR Gold Shares (GLD): <a href="https://www.longtermtrends.net/data-yfin-gld/" target="_blank">longtermtrends.net/data-yfin-gld/</a></li>
     </ul>
   </li>
-</ul>
-""", unsafe_allow_html=True)
-
-    # --- FURTHER INFORMATION SECTION ---
-    st.markdown("""
-----
-<h2>Further Information</h2>
-<ul>
-  <li><a href="https://app.hedgeye.com/insights/81549-risk-report-a-quad-4-investing-playbook" target="_blank">Risk Report: A Quad 4 Investing Playbook</a></li>
-  <li><a href="https://cssanalytics.wordpress.com/2025/03/20/the-growth-and-inflation-sector-timing-model/" target="_blank">The Growth and Inflation Sector Timing Model</a></li>
-  <li><a href="https://simplywall.st/article/protecting-capital-with-the-all-weather-portfolio-strategy?utm_source=braze&utm_medium=email&utm_campaign=Market+Insights&utm_content=Email" target="_blank">Protecting Capital with the All-Weather Portfolio Strategy</a></li>
-  <li><a href="https://www.bridgewater.com/research-and-insights/the-all-weather-story" target="_blank">The All Weather Story</a></li>
-</ul>
-""", unsafe_allow_html=True)
-
-    # --- DATA PROCESSING & LIMITATIONS SECTION ---
-    st.markdown("""
-----
-<h2>How the App Fetches and Processes Data</h2>
-<ul>
-  <li><b>Data Fetching:</b> The app retrieves historical data for all assets and macro indicators from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a>. Data is fetched for each asset or index at app startup, as confirmed by the logs.</li>
-  <li><b>Data Processing:</b> After fetching, each dataset is resampled to a common frequency (typically business month end, BME). <b>Inflation data, after BME resampling, is interpolated (using a time-based method) to fill all data gaps, ensuring a continuous inflation series for all BME dates.</b> Only inflation is interpolated—other assets remain at BME frequency without interpolation. If any dataset contains dates beyond today, these are truncated to the current date to ensure realistic backtesting. Moving averages and growth rates are computed for S&P 500 and Inflation Rate, which are used for regime identification. Asset data is aligned to a common date range and frequency for analysis.</li>
-  <li><b>Merging Logic:</b> The app performs an <b>inner merge</b> between S&P 500 and interpolated inflation data for regime identification. This means that only periods where both S&P 500 and inflation data are present (and filled for inflation) are included in regime calculations, eliminating gaps due to missing inflation. For asset performance analysis, an <b>outer merge</b> is used across all assets, so each asset retains its full available history, but only periods where all selected assets have data are included in combined analyses.</li>
-  <li><b>Regime Identification:</b> Regimes are determined using S&P 500 and Inflation Rate data (value, moving average, and moving average growth). Regimes are assigned for each period, and periods where regime cannot be computed (e.g., insufficient lookback) are labeled as 'Unknown'.</li>
-  <li><b>Asset Performance Calculation:</b> For each analysis tab, only assets with sufficient data before a computed cutoff date are included. The cutoff date is determined by the earliest available data for all required assets or the moving average window. Some tabs allow inclusion of newer assets if the user enables this option. Performance metrics are grouped by regime.</li>
-</ul>
-
-<h2>Impact on Results</h2>
-<ul>
-  <li><b>Inner Merge Impact:</b> By using an inner merge for regime identification, the app ensures that regime labels are only assigned to periods where both S&P 500 and inflation data are present for every BME date. Interpolation of inflation data guarantees no regime gaps due to missing inflation, but if S&P 500 data is missing for a period, that period is excluded from regime analysis.</li>
-  <li><b>Outer Merge Impact:</b> The outer merge for asset time series ensures that each asset's full history is retained. However, when analyzing multiple assets together, only periods where all selected assets have data are considered, which may shorten the analysis window for some combinations.</li>
-  <li>Asset performance is only calculated for periods where all selected assets have data. Newer assets may be excluded from long-term analysis unless late inclusion is enabled.</li>
-  <li>Date correction ensures no future data is used in calculations, improving backtest realism.</li>
-  <li>Interpolation and resampling may introduce artifacts if source data is sparse or irregular. Interpolated inflation values are estimates and may not reflect actual historical values for missing periods.</li>
-</ul>
-
-<h2>App Limitations</h2>
-<ul>
-  <li><b>Data Gaps:</b> If any asset or macro data is missing, regime assignment and asset performance calculations may be incomplete.</li>
-  <li><b>Cutoff Dates:</b> Many analyses require all assets to have data from the same start date, which can exclude newer ETFs or indices from long-term results.</li>
-  <li><b>Frequency Mismatch:</b> Most assets are resampled to business month end, but only inflation is interpolated to ensure continuous regime calculation. Minor alignment issues may occur for assets with sparse data.</li>
-  <li><b>Regime Uncertainty:</b> Early periods with insufficient data for moving averages are labeled 'Unknown'.</li>
-  <li><b>Future Dates:</b> If source data contains future dates, these are truncated to today, but this may cause confusion if the data provider changes conventions.</li>
-  <li><b>No Real-Time Data:</b> The app uses static snapshots from longtermtrends.net and does not fetch real-time market data.</li>
 </ul>
 """, unsafe_allow_html=True)
