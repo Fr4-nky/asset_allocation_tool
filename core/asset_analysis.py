@@ -243,3 +243,20 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         """, unsafe_allow_html=True)
 
         plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
+    else:
+        tab.markdown("""
+        <div style="padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #F6F6F6; border-radius: 0.5rem; height: 24rem; margin: 1rem 0;">
+            <div style="margin-bottom: 1rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <div style="font-weight: 300; text-align: center; margin-bottom: 1.5rem;">
+               Unlock aggregated performance metrics!
+            </div>
+            <a href="/pricing" style="background-color: #2563eb; color: white; padding: 0.75rem 2.5rem; border-radius: 0.75rem; font-weight: 300; text-decoration: none; display: inline-block;">
+                Become a Member
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
