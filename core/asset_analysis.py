@@ -245,8 +245,8 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, regime_labels_dict, tab_title)
     else:
         from config import API_BASE_URL
-        # Create a JavaScript that logs parent URL information instead of navigating
-        tab.markdown("""
+        # Create proper redirection to the community page
+        tab.markdown(f"""
         <div style="padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #F6F6F6; border-radius: 0.5rem; height: 24rem; margin: 1rem 0;">
             <div style="margin-bottom: 1rem;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
