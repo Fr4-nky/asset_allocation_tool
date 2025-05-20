@@ -257,7 +257,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
             <div style="font-weight: 300; text-align: center; margin-bottom: 1.5rem;">
                Unlock aggregated performance metrics!
             </div>
-            <a href="{API_BASE_URL}/community/" target="_top"
+            <a href="{API_BASE_URL}/community/" target="_blank"
                style="background-color: #2563eb; color: white; padding: 0.75rem 2.5rem; border-radius: 0.75rem; font-weight: 300; text-decoration: none; display: inline-block; cursor: pointer;">
                 Become a Member
             </a>
