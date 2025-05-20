@@ -184,11 +184,11 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
 
     show_aggregated_metrics = st.session_state.is_premium_user
     print(f"[DEBUG] show_aggregated_metrics for tab '{title}': {show_aggregated_metrics}")
-    
-    if show_aggregated_metrics:
-        tab.markdown("""
+    tab.markdown("""
         <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
         """, unsafe_allow_html=True)
+    if show_aggregated_metrics:
+
 
         avg_metrics_table = generate_aggregated_metrics(filtered_trade_log_df, merged_asset_data_metrics, eligible_assets, regime_labels_dict)
         avg_metrics_table = avg_metrics_table[avg_metrics_table['Regime'] != 'Unknown']
