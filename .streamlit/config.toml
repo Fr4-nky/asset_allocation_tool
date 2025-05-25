@@ -1,3 +1,6 @@
+# Streamlit configuration to allow iframe embedding
+# This file should be placed at .streamlit/config.toml in your Streamlit app directory
+
 [logger]
 level = "error"
 
@@ -8,6 +11,21 @@ base = "light"
 toolbarMode = "minimal"
 
 [server]
+# Disable XSRF protection to allow iframe embedding
 enableXsrfProtection = false
+
+# Allow cross-origin requests
 enableCORS = false
+
+# Alternatively, you can set specific allowed origins
+# allowedOrigins = ["https://www.longtermtrends.net", "https://staging.longtermtrends.net"]
+
+[browser]
+# Set the server address (optional)
+# serverAddress = "asset-allocation.longtermtrends.net"
+# serverPort = 8501
+
+[global]
+# Set to false for production
+developmentMode = false
 
