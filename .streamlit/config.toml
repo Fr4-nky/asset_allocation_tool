@@ -6,3 +6,8 @@ base = "light"
 
 [client]
 toolbarMode = "minimal"
+
+[server]
+enableXsrfProtection = false
+enableCORS = false
+
