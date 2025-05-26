@@ -35,14 +35,18 @@ query_params = st.query_params
 
 email = query_params["email"] if "email" in query_params else None
 
-verify_endpoint = (
-    f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
-    if API_BASE_URL
-    else "http://localhost:8000/community/verify-user-membership?email={email}"
-)
+# If DEBUG is true, allow all emails to access premium content
+if DEBUG:
+    st.session_state.is_premium_user = True
+else:
+    verify_endpoint = (
+        f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
+        if API_BASE_URL
+        else "http://localhost:8000/community/verify-user-membership?email={email}"
+    )
 
-response = requests.get(verify_endpoint)
-st.session_state.is_premium_user  = response.json().get("is_premium_member", False)
+    response = requests.get(verify_endpoint)
+    st.session_state.is_premium_user  = response.json().get("is_premium_member", False)
 
 
 # Set page configuration
