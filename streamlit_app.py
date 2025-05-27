@@ -20,6 +20,7 @@ import tabs.cyclical_vs_defensive  # New import
 import tabs.asset_classes  # New import
 import tabs.regime  # New import
 import requests  # For making API calls
+from urllib.parse import quote  # For URL encoding
 
 from core.fetch import fetch_and_decode, decode_base64_data
 from core.processing import (
@@ -60,15 +61,17 @@ if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
 # Create a specific logger for authentication
-auth_logger = logging.getLogger('auth')
+auth_logger = logging.getLogger("auth")
 auth_logger.setLevel(logging.INFO)
 
 # Create file handler for authentication logs
-auth_handler = logging.FileHandler(os.path.join(log_dir, 'auth.log'))
+auth_handler = logging.FileHandler(os.path.join(log_dir, "auth.log"))
 auth_handler.setLevel(logging.INFO)
 
 # Create formatter
-auth_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+auth_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 auth_handler.setFormatter(auth_formatter)
 
 # Add handler to logger
@@ -83,13 +86,19 @@ auth_logger.info(f"User email from query params: {email}")
 # If DEBUG is true, allow all emails to access premium content
 if DEBUG:
     st.session_state.is_premium_user = True
-    auth_logger.info(f"DEBUG mode enabled - setting premium access to True for email: {email}")
-else:
-    verify_endpoint = (
-        f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
-        if API_BASE_URL
-        else f"http://localhost:8000/community/verify-user-membership?email={email}"
+    auth_logger.info(
+        f"DEBUG mode enabled - setting premium access to True for email: {email}"
     )
+else:
+    # URL encode the email to handle special characters like +
+    encoded_email = quote(email) if email else ""
+    verify_endpoint = (
+        f"{API_BASE_URL}/community/verify-user-membership/?email={encoded_email}"
+        if API_BASE_URL
+        else f"http://localhost:8000/community/verify-user-membership?email={encoded_email}"
+    )
+    auth_logger.info(f"Original email: {email}")
+    auth_logger.info(f"URL encoded email: {encoded_email}")
     auth_logger.info(f"Making API call to verify user membership: {verify_endpoint}")
 
     try:
@@ -99,14 +108,18 @@ else:
 
         response_data = response.json()
         st.session_state.is_premium_user = response_data.get("is_premium_member", False)
-        auth_logger.info(f"Extracted is_premium_member: {st.session_state.is_premium_user}")
+        auth_logger.info(
+            f"Extracted is_premium_member: {st.session_state.is_premium_user}"
+        )
 
     except Exception as e:
         auth_logger.error(f"Error during membership verification: {str(e)}")
         st.session_state.is_premium_user = False
         auth_logger.info("Setting premium access to False due to error")
 
-auth_logger.info(f"Final user membership status - Email: {email}, Is Premium: {st.session_state.is_premium_user}")
+auth_logger.info(
+    f"Final user membership status - Email: {email}, Is Premium: {st.session_state.is_premium_user}"
+)
 
 
 # Set page configuration
