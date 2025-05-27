@@ -10,6 +10,8 @@ import re
 import concurrent.futures
 import datetime  # for default dates and cutoffs
 import hashlib
+import logging
+import os
 import tabs.all_weather  # New import
 import tabs.us_sectors  # New import
 import tabs.factor_investing  # New import
@@ -52,42 +54,59 @@ from core.asset_analysis import (
 # --- User Authentication ---
 from config import API_BASE_URL, DEBUG
 
+# Configure logging only for authentication
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Create a specific logger for authentication
+auth_logger = logging.getLogger('auth')
+auth_logger.setLevel(logging.INFO)
+
+# Create file handler for authentication logs
+auth_handler = logging.FileHandler(os.path.join(log_dir, 'auth.log'))
+auth_handler.setLevel(logging.INFO)
+
+# Create formatter
+auth_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+auth_handler.setFormatter(auth_formatter)
+
+# Add handler to logger
+if not auth_logger.handlers:
+    auth_logger.addHandler(auth_handler)
+
 query_params = st.query_params
 
 email = query_params["email"] if "email" in query_params else None
-print(f"DEBUG: User email from query params: {email}")
+auth_logger.info(f"User email from query params: {email}")
 
 # If DEBUG is true, allow all emails to access premium content
 if DEBUG:
     st.session_state.is_premium_user = True
-    print(
-        f"DEBUG: DEBUG mode enabled - setting premium access to True for email: {email}"
-    )
+    auth_logger.info(f"DEBUG mode enabled - setting premium access to True for email: {email}")
 else:
     verify_endpoint = (
         f"{API_BASE_URL}/community/verify-user-membership/?email={email}"
         if API_BASE_URL
         else f"http://localhost:8000/community/verify-user-membership?email={email}"
     )
-    print(f"DEBUG: Making API call to verify user membership: {verify_endpoint}")
+    auth_logger.info(f"Making API call to verify user membership: {verify_endpoint}")
 
     try:
         response = requests.get(verify_endpoint)
-        print(f"DEBUG: API response status: {response.status_code}")
-        print(f"DEBUG: API response content: {response.text}")
+        auth_logger.info(f"API response status: {response.status_code}")
+        auth_logger.debug(f"API response content: {response.text}")
 
         response_data = response.json()
         st.session_state.is_premium_user = response_data.get("is_premium_member", False)
-        print(f"DEBUG: Extracted is_premium_member: {st.session_state.is_premium_user}")
+        auth_logger.info(f"Extracted is_premium_member: {st.session_state.is_premium_user}")
 
     except Exception as e:
-        print(f"DEBUG: Error during membership verification: {str(e)}")
+        auth_logger.error(f"Error during membership verification: {str(e)}")
         st.session_state.is_premium_user = False
-        print(f"DEBUG: Setting premium access to False due to error")
+        auth_logger.info("Setting premium access to False due to error")
 
-print(
-    f"DEBUG: Final user membership status - Email: {email}, Is Premium: {st.session_state.is_premium_user}"
-)
+auth_logger.info(f"Final user membership status - Email: {email}, Is Premium: {st.session_state.is_premium_user}")
 
 
 # Set page configuration
