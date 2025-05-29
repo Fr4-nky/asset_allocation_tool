@@ -186,3 +186,75 @@ env can be `dev`, `staging`, or `prod` depending on the environment you are work
 ```bash
 docker exec -it asset-allocation-[env] /bin/bash
 ```
+
+## Premium User Authentication & Features
+
+This application includes a premium membership system that provides additional analytical capabilities to verified users.
+
+### Premium User Verification Process
+
+The application verifies premium membership through the following process:
+
+1. **Email Parameter**: The user's email is passed as a query parameter in the URL (`?email=user@example.com`)
+2. **URL Encoding**: Special characters in the email (like `+`) are properly URL-encoded
+3. **API Verification**: The app makes a GET request to verify membership status:
+   ```
+   GET {API_BASE_URL}/community/verify-user-membership/?email={encoded_email}
+   ```
+4. **Response Processing**: The API returns a JSON response with an `is_premium_member` boolean field
+5. **Session Storage**: The membership status is stored in `st.session_state.is_premium_user`
+
+### Configuration
+
+The premium verification system is controlled by these configuration variables:
+
+- **`API_BASE_URL`**: Base URL for the membership verification API (default: `https://www.longtermtrends.net`)
+- **`DEBUG`**: When set to `true`, grants premium access to all users for development purposes
+
+### Authentication Logging
+
+All authentication attempts are logged to `logs/auth.log` with the following information:
+- Original and URL-encoded email addresses
+- API endpoint calls and responses
+- Membership verification results
+- Error handling for failed verification attempts
+
+### Premium-Only Content
+
+Premium users gain access to the following exclusive features:
+
+#### Aggregated Performance Metrics
+- **Comprehensive Performance Tables**: Detailed performance metrics aggregated by regime and asset
+- **Key Metrics Include**:
+  - Annualized Return (Aggregated)
+  - Annualized Volatility (Aggregated) 
+  - Sharpe Ratio (Aggregated)
+  - Average Max Drawdown (Period Average)
+- **Advanced Visualizations**: Interactive bar charts displaying performance metrics across different economic regimes
+- **Regime-Based Analysis**: Color-coded tables and charts that highlight performance during different macroeconomic conditions
+
+#### Features Available on All Analysis Tabs
+Premium features are available across all major analysis tabs:
+- Asset Classes
+- Large vs. Small Cap
+- Cyclical vs. Defensive
+- US Sectors
+- Factor Investing
+- All-Weather Portfolio
+
+### Non-Premium User Experience
+
+Users without premium membership can still access:
+- Full regime visualization and timeline
+- Asset performance charts (normalized to 100)
+- Complete trade logs with regime highlighting
+- Basic analytical footnotes and explanations
+
+Non-premium users see a membership upgrade prompt where premium content would appear, with a direct link to join the community.
+
+### Development Mode
+
+For development and testing purposes:
+- Set `DEBUG=true` in your environment variables
+- This grants premium access to all users regardless of membership status
+- Useful for testing premium features without API dependencies
