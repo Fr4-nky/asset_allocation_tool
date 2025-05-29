@@ -102,7 +102,8 @@ else:
     auth_logger.info(f"Making API call to verify user membership: {verify_endpoint}")
 
     try:
-        response = requests.get(verify_endpoint)
+        
+        response = requests.get(verify_endpoint, verify=False)
         auth_logger.info(f"API response status: {response.status_code}")
         auth_logger.debug(f"API response content: {response.text}")
 
