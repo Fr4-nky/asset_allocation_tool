@@ -1,0 +1,34 @@
+services:
+  asset-allocation-app-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asset-allocation-staging
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - DEBUG=false
+      - API_BASE_URL=https://staging.longtermtrends.net
+      - STREAMLIT_ENV=staging
+    volumes:
+      - ./logs:/app/logs
+    command: >
+      streamlit run streamlit_app.py 
+      --server.port=8501 
+      --server.address=0.0.0.0
+      --server.headless=true
+      --browser.gatherUsageStats=false
+    restart: unless-stopped
+    networks:
+      - asset-allocation-network
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.asset-allocation-staging.rule=Host(`staging-asset-allocation.yourdomain.com`)"
+    #   - "traefik.http.routers.asset-allocation-staging.tls=true"
+    #   - "traefik.http.routers.asset-allocation-staging.tls.certresolver=letsencrypt"
+
+networks:
+  asset-allocation-network:
+    driver: bridge
