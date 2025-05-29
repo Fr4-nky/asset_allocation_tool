@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: asset-allocation-staging
     ports:
-      - "8502:8501"
+      - "8501:8501"
     env_file:
       - .env
     environment:
@@ -17,7 +17,7 @@ services:
     command: >
       streamlit run streamlit_app.py 
       --server.port=8501 
-      --server.address=0.0.0.0
+      --server.address=127.0.0.1
       --server.headless=true
       --browser.gatherUsageStats=false
     restart: unless-stopped

@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: asset-allocation-prod
     ports:
-      - "8503:8501"
+      - "8501:8501"
     env_file:
       - .env
     environment:
