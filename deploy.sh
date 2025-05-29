@@ -64,13 +64,7 @@ echo -e "${YELLOW}🏥 Performing health check...${NC}"
 sleep 10
 
 CONTAINER_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
-if [ "$ENVIRONMENT" = "dev" ]; then
-    PORT=8501
-elif [ "$ENVIRONMENT" = "staging" ]; then
-    PORT=8502
-else
-    PORT=8503
-fi
+PORT=8501
 
 # Check if the application is responding
 if curl -f http://localhost:${PORT}/_stcore/health > /dev/null 2>&1; then

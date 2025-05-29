@@ -109,21 +109,14 @@ This project includes Docker containerization with separate configurations for d
 ### Prerequisites
 
 - Docker and Docker Compose installed
-- Make sure ports 8501, 8502, and 8503 are available
+- Make sure port 8501 is available
 
 ### Quick Start
 
 #### Development Environment
 
 ```bash
-# Quick start with default compose file
-docker compose up --build
-
-# Or using the deployment script
-./deploy.sh dev
-
-# Or manually specifying the file
-docker-compose -f docker-compose.yml up --build
+docker-compose -f docker-compose.yml up
 ```
 
 Access at: <http://localhost:8501>
@@ -131,14 +124,13 @@ Access at: <http://localhost:8501>
 #### Staging Environment
 
 ```bash
-# Using the deployment script
 ./deploy.sh staging
 
 # Or manually
 docker-compose -f docker-compose.staging.yml up --build -d
 ```
 
-Access at: <http://localhost:8502>
+Access at: <http://localhost:8501>
 
 #### Production Environment
 
@@ -150,7 +142,7 @@ Access at: <http://localhost:8502>
 docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
-Access at: <http://localhost:8503>
+Access at: <http://localhost:8501>
 
 ### Environment Configuration
 
@@ -214,7 +206,7 @@ Each Docker Compose file overrides specific variables:
 - Production-like configuration
 - No source code mounting
 - SSL/TLS ready with Traefik labels
-- Port 8502
+- Port 8501
 
 #### Production
 
@@ -223,7 +215,7 @@ Each Docker Compose file overrides specific variables:
 - CORS disabled
 - XSRF protection enabled
 - SSL/TLS ready with Traefik labels
-- Port 8503
+- Port 8501
 
 ### Deployment Script
 
