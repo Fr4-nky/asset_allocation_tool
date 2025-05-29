@@ -23,11 +23,11 @@ services:
     restart: unless-stopped
     networks:
       - asset-allocation-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.asset-allocation-staging.rule=Host(`staging-asset-allocation.yourdomain.com`)"
-      - "traefik.http.routers.asset-allocation-staging.tls=true"
-      - "traefik.http.routers.asset-allocation-staging.tls.certresolver=letsencrypt"
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.asset-allocation-staging.rule=Host(`staging-asset-allocation.yourdomain.com`)"
+    #   - "traefik.http.routers.asset-allocation-staging.tls=true"
+    #   - "traefik.http.routers.asset-allocation-staging.tls.certresolver=letsencrypt"
 
 networks:
   asset-allocation-network:
