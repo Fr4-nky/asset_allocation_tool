@@ -7,3 +7,6 @@ requests==2.32.3
 
 #environment
 python-dotenv==1.1.0
+
+# For Docker health checks
+pycurl==7.45.3

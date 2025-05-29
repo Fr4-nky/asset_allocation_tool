@@ -103,3 +103,86 @@ from core.charts import plot_asset_performance_over_time, plot_metrics_bar_chart
 **Tip:**
 - Use the existing tabs (such as "US Sectors" or "All-Weather Portfolio") as templates for structure and logic.
 - Keep changes minimal and focused on your new tab to maintain code clarity and stability.
+
+## Docker Deployment
+
+This project includes Docker containerization with separate configurations for development, staging, and production environments.
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Make sure port 8501 is available
+
+### Quick Start
+
+#### Development Environment
+
+```bash
+docker compose -f docker-compose.yml up
+```
+
+Access at: <http://localhost:8501>
+
+#### Staging Environment
+
+```bash
+./deploy.sh staging
+
+# Or manually
+docker compose -f docker-compose.staging.yml up --build -d
+```
+
+Access at: <http://localhost:8501>
+
+#### Production Environment
+
+```bash
+# Using the deployment script
+./deploy.sh prod
+
+# Or manually
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Access at: <http://localhost:8501>
+
+
+#### Environment-Specific Compose Files
+
+- `docker-compose.yml`: Development with hot reloading and volume mounts (default)
+- `docker-compose.staging.yml`: Staging with production-like settings
+- `docker-compose.prod.yml`: Production with resource limits and security headers
+
+
+### Logs
+
+Logs are persisted in the `./logs` directory and mounted into all containers.
+
+
+#### Check container status
+
+```bash
+# Development (default)
+docker compose ps
+
+# Staging or Production
+docker compose -f docker-compose.[staging|prod].yml ps
+```
+
+#### View logs
+
+```bash
+# Development (default)
+docker compose logs -f
+
+# Staging or Production
+docker compose -f docker-compose.[staging|prod].yml logs -f
+```
+
+#### Access container shell
+
+env can be `dev`, `staging`, or `prod` depending on the environment you are working with.
+
+```bash
+docker exec -it asset-allocation-[env] /bin/bash
+```
