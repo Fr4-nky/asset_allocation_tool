@@ -10,7 +10,7 @@ services:
       - .env
     environment:
       - DEBUG=false
-      - API_BASE_URL=https://staging.longtermtrends.com
+      - API_BASE_URL=https://staging.longtermtrends.net
       - STREAMLIT_ENV=staging
     volumes:
       - ./logs:/app/logs

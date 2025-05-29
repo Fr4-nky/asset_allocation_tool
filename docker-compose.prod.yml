@@ -10,7 +10,7 @@ services:
       - .env
     environment:
       - DEBUG=false
-      - API_BASE_URL=https://www.longtermtrends.com
+      - API_BASE_URL=https://www.longtermtrends.net
       - STREAMLIT_ENV=production
     volumes:
       - ./logs:/app/logs
