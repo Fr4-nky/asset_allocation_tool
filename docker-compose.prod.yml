@@ -17,7 +17,7 @@ services:
     command: >
       streamlit run streamlit_app.py 
       --server.port=8501 
-      --server.address=0.0.0.0
+      --server.address=127.0.0.1
       --server.headless=true
       --browser.gatherUsageStats=false
       --server.enableCORS=false
