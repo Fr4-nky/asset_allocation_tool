@@ -16,6 +16,48 @@ pip install -r requirements.txt
 python3 -m streamlit run streamlit_app.py
 ```
 
+## Environment Configuration (.env file)
+
+### Do I need a .env file?
+
+**No, the .env file is optional.** The application will work perfectly fine without it using the default configuration values.
+
+### Default Configuration
+
+If no `.env` file is present, the application uses these defaults:
+- `API_BASE_URL`: `https://www.longtermtrends.net`
+- `SECRET_KEY`: `None` (not currently required for basic functionality)
+- `DEBUG`: `False`
+
+### When to use a .env file
+
+You only need to create a `.env` file if you want to:
+
+1. **Use a different API endpoint** (e.g., for local development or testing)
+2. **Enable debug mode** to bypass premium user verification
+3. **Set a custom secret key** (for future security features)
+
+### Creating a .env file (Optional)
+
+If you need custom configuration, create a `.env` file in the project root with any of these variables:
+
+```env
+# Optional: Change the API base URL (default: https://www.longtermtrends.net)
+API_BASE_URL=http://localhost:8000
+
+# Optional: Enable debug mode to grant premium access to all users (default: False)
+DEBUG=true
+
+# Optional: Set a secret key for future security features (default: None)
+SECRET_KEY=your-secret-key-here
+```
+
+### Development vs Production
+
+- **Development**: You might want to set `DEBUG=true` to test premium features
+- **Production**: No `.env` file needed, or use it to override the default API endpoint
+- **Docker**: Environment variables can be set directly in docker-compose files instead of using `.env`
+
 ## Refactored App Structure (April 2025)
 
 ### Key Changes
