@@ -1,0 +1,46 @@
+services:
+  asset-allocation-app-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asset-allocation-prod
+    ports:
+      - "8503:8501"
+    env_file:
+      - .env
+    environment:
+      - DEBUG=false
+      - API_BASE_URL=https://www.longtermtrends.com
+      - STREAMLIT_ENV=production
+    volumes:
+      - ./logs:/app/logs
+    command: >
+      streamlit run streamlit_app.py 
+      --server.port=8501 
+      --server.address=0.0.0.0
+      --server.headless=true
+      --browser.gatherUsageStats=false
+      --server.enableCORS=false
+      --server.enableXsrfProtection=true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - asset-allocation-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.asset-allocation-prod.rule=Host(`asset-allocation.yourdomain.com`)"
+      - "traefik.http.routers.asset-allocation-prod.tls=true"
+      - "traefik.http.routers.asset-allocation-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.asset-allocation-prod.headers.forcestsheader=true"
+      - "traefik.http.middlewares.asset-allocation-prod.headers.sslredirect=true"
+
+networks:
+  asset-allocation-network:
+    driver: bridge

@@ -1,0 +1,31 @@
+services:
+  asset-allocation-app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asset-allocation-dev
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - DEBUG=true
+      - API_BASE_URL=http://localhost:8000
+      - STREAMLIT_ENV=development
+    volumes:
+      # Mount source code for hot reloading in development
+      - .:/app
+      - ./logs:/app/logs
+    command: >
+      streamlit run streamlit_app.py 
+      --server.port=8501 
+      --server.address=0.0.0.0 
+      --server.runOnSave=true
+      --server.fileWatcherType=auto
+    restart: unless-stopped
+    networks:
+      - asset-allocation-network
+
+networks:
+  asset-allocation-network:
+    driver: bridge
