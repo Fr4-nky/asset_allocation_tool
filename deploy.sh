@@ -36,21 +36,28 @@ fi
 
 echo -e "${YELLOW}📦 Using environment variables from .env file${NC}"
 
+# Determine which compose file to use
+if [ "$ENVIRONMENT" = "dev" ]; then
+    COMPOSE_FILE="docker-compose.yml"
+else
+    COMPOSE_FILE="docker-compose.${ENVIRONMENT}.yml"
+fi
+
 # Stop and remove existing containers
 echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
-docker-compose -f docker-compose.${ENVIRONMENT}.yml down --remove-orphans
+docker-compose -f $COMPOSE_FILE down --remove-orphans
 
 # Build and start containers
 echo -e "${YELLOW}🔨 Building and starting containers...${NC}"
-docker-compose -f docker-compose.${ENVIRONMENT}.yml up --build -d
+docker-compose -f $COMPOSE_FILE up --build -d
 
 # Show container status
 echo -e "${GREEN}📊 Container status:${NC}"
-docker-compose -f docker-compose.${ENVIRONMENT}.yml ps
+docker-compose -f $COMPOSE_FILE ps
 
 # Show logs
 echo -e "${GREEN}📋 Recent logs:${NC}"
-docker-compose -f docker-compose.${ENVIRONMENT}.yml logs --tail=10
+docker-compose -f $COMPOSE_FILE logs --tail=10
 
 # Health check
 echo -e "${YELLOW}🏥 Performing health check...${NC}"
@@ -71,7 +78,7 @@ if curl -f http://localhost:${PORT}/_stcore/health > /dev/null 2>&1; then
     echo -e "${GREEN}🌐 Access the application at: http://localhost:${PORT}${NC}"
 else
     echo -e "${RED}❌ Health check failed. Check logs:${NC}"
-    docker-compose -f docker-compose.${ENVIRONMENT}.yml logs --tail=20
+    docker-compose -f $COMPOSE_FILE logs --tail=20
 fi
 
 echo -e "${GREEN}🎉 Deployment complete!${NC}"

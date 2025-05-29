@@ -10,11 +10,14 @@ This project includes Docker containerization with separate configurations for d
 
 ### Development Environment
 ```bash
-# Using the deployment script
+# Quick start with default compose file
+docker compose up --build
+
+# Or using the deployment script
 ./deploy.sh dev
 
-# Or manually
-docker-compose -f docker-compose.dev.yml up --build
+# Or manually specifying the file
+docker-compose -f docker-compose.yml up --build
 ```
 Access at: http://localhost:8501
 
@@ -40,16 +43,33 @@ Access at: http://localhost:8503
 
 ## Environment Configuration
 
-Each environment has its own configuration file:
-- `.env.dev` - Development settings
-- `.env.staging` - Staging settings  
-- `.env.prod` - Production settings
+The application uses a single `.env` file for all environments with environment-specific overrides in the Docker Compose files.
 
-### Key Environment Variables
-- `DEBUG`: Enable/disable debug mode
-- `API_BASE_URL`: Backend API URL
-- `STREAMLIT_ENV`: Environment identifier
+### Environment Variables in `.env`
+- `DEBUG`: Enable/disable debug mode (overridden per environment)
+- `API_BASE_URL`: Backend API URL (overridden per environment)
+- `STREAMLIT_ENV`: Environment identifier (set by Docker Compose)
 - `SECRET_KEY`: Application secret key
+- `STREAMLIT_SERVER_PORT`: Streamlit server port
+- `STREAMLIT_SERVER_ADDRESS`: Streamlit server address
+
+### Environment-Specific Overrides
+Each Docker Compose file overrides specific variables:
+
+**Development (`docker-compose.yml`)**:
+- `DEBUG=true`
+- `API_BASE_URL=http://localhost:8000`
+- `STREAMLIT_ENV=development`
+
+**Staging (`docker-compose.staging.yml`)**:
+- `DEBUG=false`
+- `API_BASE_URL=https://staging.longtermtrends.com`
+- `STREAMLIT_ENV=staging`
+
+**Production (`docker-compose.prod.yml`)**:
+- `DEBUG=false`
+- `API_BASE_URL=https://www.longtermtrends.com`
+- `STREAMLIT_ENV=production`
 
 ## Docker Files
 
@@ -58,7 +78,7 @@ Each environment has its own configuration file:
 - `.dockerignore`: Files to exclude from Docker context
 
 ### Environment-Specific Compose Files
-- `docker-compose.dev.yml`: Development with hot reloading and volume mounts
+- `docker-compose.yml`: Development with hot reloading and volume mounts (default)
 - `docker-compose.staging.yml`: Staging with production-like settings
 - `docker-compose.prod.yml`: Production with resource limits and security headers
 
@@ -124,12 +144,20 @@ For production deployment, consider:
 
 ### Check container status
 ```bash
-docker-compose -f docker-compose.[env].yml ps
+# Development (default)
+docker-compose ps
+
+# Staging or Production
+docker-compose -f docker-compose.[staging|prod].yml ps
 ```
 
 ### View logs
 ```bash
-docker-compose -f docker-compose.[env].yml logs -f
+# Development (default)
+docker-compose logs -f
+
+# Staging or Production
+docker-compose -f docker-compose.[staging|prod].yml logs -f
 ```
 
 ### Access container shell
