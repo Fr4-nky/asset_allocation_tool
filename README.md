@@ -155,6 +155,14 @@ This project includes Docker containerization with separate configurations for d
 - Docker and Docker Compose installed
 - Make sure port 8501 is available
 
+- Ensure the deployment script is executable:
+
+  ```bash
+  chmod +x deploy.sh
+  ```
+
+  (Run this command if you encounter a permission error when trying to execute `./deploy.sh`)
+
 ### Quick Start
 
 #### Development Environment
