@@ -149,7 +149,9 @@ st.markdown(
 st.title("Macroeconomic Regimes and Asset Performance Analysis")
 st.write(
     """
-This app visualizes macroeconomic regimes based on S&P 500 and Inflation Rate data, and analyzes asset performance across these regimes.
+_Assessing trends in economic growth and inflation to define distinct market regimes—such as Reflation, Goldilocks, Stagflation, or Deflation/Disinflation—is a widely used approach to asset allocation. Understanding how assets behave in these environments offers practical insights for portfolio design and risk management._
+
+This Asset Allocation Tool lets you visualize these regimes and analyze how different asset classes have performed across them. The tool is built to support more robust portfolio construction: **all members can explore individual asset performance, while premium members unlock the full analysis, including aggregated performance metrics.**
 """
 )
 
