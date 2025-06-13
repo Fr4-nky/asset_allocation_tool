@@ -366,29 +366,34 @@ def render(tab, sp_inflation_data):
 ----
 <h2>Further Information</h2>
 <ul>
-  <li><a href="https://app.hedgeye.com/insights/81549-risk-report-a-quad-4-investing-playbook" target="_blank">Risk Report: A Quad 4 Investing Playbook</a></li>
-  <li><a href="https://cssanalytics.wordpress.com/2025/03/20/the-growth-and-inflation-sector-timing-model/" target="_blank">The Growth and Inflation Sector Timing Model</a></li>
-  <li><a href="https://simplywall.st/article/protecting-capital-with-the-all-weather-portfolio-strategy?utm_source=braze&utm_medium=email&utm_campaign=Market+Insights&utm_content=Email" target="_blank">Protecting Capital with the All-Weather Portfolio Strategy</a></li>
-  <li><a href="https://www.bridgewater.com/research-and-insights/the-all-weather-story" target="_blank">The All Weather Story</a></li>
+  <li>Bridgewater: <a href="https://www.bridgewater.com/research-and-insights/the-all-weather-story" target="_blank">The All Weather Story</a></li>
+  <li>Hedgeye: <a href="https://app.hedgeye.com/insights/81549-risk-report-a-quad-4-investing-playbook" target="_blank">Risk Report: A Quad 4 Investing Playbook</a></li>
+  <li>CSSA: <a href="https://cssanalytics.wordpress.com/2025/03/20/the-growth-and-inflation-sector-timing-model/" target="_blank">The Growth and Inflation Sector Timing Model</a></li>
+  <li>Simply Wall St: <a href="https://simplywall.st/article/protecting-capital-with-the-all-weather-portfolio-strategy" target="_blank">Protecting Capital with the All-Weather Portfolio Strategy</a></li>
 </ul>
 """, unsafe_allow_html=True)
 
-    # --- DATA PROCESSING & LIMITATIONS SECTION ---
+    # --- DATA PROCESSING METHODOLOGY SECTION ---
     st.markdown("""
 ----
-<h2>How Data is Fetched and Processed</h2>
+<h2>Data Processing Methodology</h2>
 <ul>
-  <li>Firstly, all asset data is fetched from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a> at app startup.</li>
-  <li>Secondly, each dataset is resampled to business month end (BME).</li>
-  <li>Thirdly, inflation data is extended: the latest official CPI data is supplemented with the <a href='https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' target='_blank'>Cleveland Fed Nowcast</a>. The gap between the last official CPI and the nowcast is interpolated to provide a continuous series. The nowcast is an estimate and will be corrected when the next official CPI is released.</li>
-  <li>Subsequently, moving averages and growth rates are calculated for both the S&P 500 and inflation data.</li>
-  <li>Lastly, regimes are identified using these moving averages, and asset performance is then calculated for each regime.</li>
+  <li>Asset data is sourced from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a> and resampled to business month end (BME) frequency.</li>
+  <li>The inflation series is extended using the <a href='https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' target='_blank'>Cleveland Fed Nowcast</a> to supplement the latest official CPI data. The gap between the last official report and the nowcast is interpolated to ensure a continuous dataset.</li>
+  <li>Moving averages and growth rates are calculated for both the S&P 500 and the extended inflation data.</li>
+  <li>Economic regimes are then identified based on these indicators, and asset performance is calculated for each regime.</li>
 </ul>
 
-<h2>Limitations</h2>
+<h2>Important Considerations</h2>
 <ul>
   <li>The nowcast inflation data point is an estimation and will be corrected once official CPI numbers are released, which can impact regime identification and asset performance metrics per regime.</li>
+  <li>The S&amp;P 500 is used as a proxy for economic growth to facilitate analysis with readily available daily data. The S&amp;P 500 and GDP are historically highly correlated, as illustrated <a href="https://www.longtermtrends.net/business-cycle/" target="_blank">here</a>.</li>
   <li>The resampling to business month end (BME) can also impact regime identification and asset performance metrics per regime.</li>
+  <li>All performance data presented is historical and is not indicative of future results. Market conditions and asset behaviors can change.</li>
+  <li>The macroeconomic regime model used (based on S&amp;P 500 and inflation trends) is a simplified representation of complex economic interactions. Other factors not included in this model can also significantly influence asset performance.</li>
+  <li>Historical data availability varies across different assets. Analyses and comparisons, particularly for aggregated metrics, may be influenced by these differing start dates. The tool provides options to include or exclude assets with shorter histories in some calculations, where applicable.</li>
+  <li>The identification of economic regimes is sensitive to the Moving Average (MA) length selected by the user. Different MA lengths can result in different regime classifications and performance metrics for the same historical period.</li>
+  <li>This tool is for informational and educational purposes only and should not be construed as financial advice. Always conduct your own research or consult with a qualified financial advisor before making investment decisions.</li>
 </ul>
 """, unsafe_allow_html=True)
 
