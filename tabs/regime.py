@@ -123,7 +123,12 @@ def render(tab, sp_inflation_data):
 
     # Layout
     fig.update_layout(
-        title={'text': 'Macro Regime Timeline: S&P 500 & Inflation', 'x': 0.5},
+        title={
+            'text': 'Macro Regime Timeline: S&P 500 & Inflation',
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
         xaxis=dict(title='Date'),
         yaxis=dict(title='S&P 500', type='log' if log_scale_sp500 else 'linear'),
         yaxis2=dict(title='Inflation Rate', overlaying='y', side='right', type='log' if log_scale_inflation_rate else 'linear'),
@@ -217,7 +222,7 @@ def render(tab, sp_inflation_data):
             'text': f'Regime Movement Over Time ({date_span})',
             'x': 0.5,
             'xanchor': 'center',
-            'yanchor': 'top',
+            'yanchor': 'top'
         },
         width=800,
         height=600,
