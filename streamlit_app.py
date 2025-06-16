@@ -151,7 +151,7 @@ st.write(
     """
 _Assessing trends in economic growth and inflation to define distinct market regimes—such as Reflation, Goldilocks, Stagflation, or Deflation/Disinflation—is a widely used approach to asset allocation. Understanding how assets behave in these environments offers practical insights for portfolio design and risk management._
 
-This Asset Allocation Tool lets you visualize these regimes and analyze how different asset classes have performed across them. The tool is built to support more robust portfolio construction: **all members can explore individual asset performance, while premium members unlock the full analysis, including aggregated performance metrics.**
+This tool is designed to support more robust portfolio construction: all members can access regime visualizations and trade logs with performance metrics for each asset and regime, while aggregated performance metrics are available to premium members.
 """
 )
 
