@@ -155,8 +155,7 @@ def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, r
                 'yanchor': 'top',
             },
             width=800,
-            height=500,
-            title_font=dict(size=20)
+            height=500
         )
         # Reset zoom on bar charts
         fig3.update_xaxes(autorange=True)
