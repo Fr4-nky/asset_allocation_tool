@@ -219,7 +219,7 @@ if start_date > end_date:
     st.sidebar.error("Start Date must be on or before End Date")
     st.stop()
 # Debug logging
-print(f"DEBUG: Selected date range: {start_date} to {end_date}")
+
 # Convert to Timestamps
 start_date, end_date = pd.to_datetime(start_date), pd.to_datetime(end_date)
 # Filter both datasets
@@ -230,9 +230,7 @@ sp_inflation_data = sp_inflation_data[
 asset_ts_data = asset_ts_data[
     (asset_ts_data["DateTime"] >= start_date) & (asset_ts_data["DateTime"] <= end_date)
 ].copy()
-print(
-    f"DEBUG: After filtering: SP shape {sp_inflation_data.shape}, Asset shape {asset_ts_data.shape}"
-)
+
 
 # --- Apply S&P 500 Inflation Adjustment if selected ---
 # The key used here must match the key of the checkbox in the sidebar
@@ -250,7 +248,7 @@ if st.session_state.get('adjust_sp500_for_inflation_sidebar_checkbox', False):
             if not cpi_series_filled.dropna().empty:
                 sp_inflation_data['S&P 500 Original (Nominal)'] = sp_inflation_data['S&P 500'].copy()
                 sp_inflation_data['S&P 500'] = sp_inflation_data['S&P 500'] / cpi_series_filled
-                print("INFO: S&P 500 data for regime calculation has been adjusted for inflation using forward-filled CPI.")
+
             else:
                 st.warning("Cannot adjust S&P 500 for inflation: Forward-filled CPI series resulted in no valid data (e.g., all zeros or NaNs). Using unadjusted S&P 500.")
         else:
@@ -264,7 +262,7 @@ else:
         # Optionally remove the temporary column if no longer needed, 
         # but it's good to keep it if the user might toggle the checkbox back and forth.
         # del sp_inflation_data['S&P 500 Original (Nominal)'] 
-        print("INFO: Using nominal S&P 500 data as inflation adjustment is not selected.")
+
 
 
 # --- Logging for Moving Average Computation ---
@@ -276,7 +274,7 @@ with st.spinner("Computing Moving Averages..."):
     sp_inflation_data["Inflation Rate MA"] = compute_moving_average(
         sp_inflation_data["Inflation Rate"], window_size=inflation_n
     )
-    print("DEBUG: Moving averages computed.")
+
     # Compute moving-average-derived cutoff date
     ma_start_date = (
         sp_inflation_data.loc[sp_inflation_data["S&P 500 MA"].notna(), "DateTime"]
@@ -285,7 +283,7 @@ with st.spinner("Computing Moving Averages..."):
     )
     st.session_state["ma_start_date"] = ma_start_date
 t1 = time.time()
-print(f"DEBUG: Moving average computation took {t1-t0:.2f} seconds.")
+
 
 # --- Logging for Growth Computation ---
 t0 = time.time()
@@ -296,33 +294,19 @@ with st.spinner("Computing Growth..."):
     sp_inflation_data["Inflation Rate MA Growth"] = compute_growth(
         sp_inflation_data["Inflation Rate MA"]
     )
-    print("DEBUG: Growth computed.")
+
     # --- DEBUG PRINTS FOR GROWTH COLUMNS ---
-    print(
-        "DEBUG: S&P 500 MA Growth min/max:",
-        sp_inflation_data["S&P 500 MA Growth"].min(),
-        sp_inflation_data["S&P 500 MA Growth"].max(),
-    )
-    print(
-        "DEBUG: Inflation Rate MA Growth min/max:",
-        sp_inflation_data["Inflation Rate MA Growth"].min(),
-        sp_inflation_data["Inflation Rate MA Growth"].max(),
-    )
-    print(
-        "DEBUG: S&P 500 MA Growth sample:",
-        sp_inflation_data["S&P 500 MA Growth"].head(),
-    )
-    print(
-        "DEBUG: Inflation Rate MA Growth sample:",
-        sp_inflation_data["Inflation Rate MA Growth"].head(),
-    )
+
+
+
+
     # --- DO NOT DROP ROWS WITH NANs IN MA OR GROWTH COLUMNS BEFORE REGIME ASSIGNMENT OR PLOTTING (MATCH OLD BEHAVIOR) ---
     # sp_inflation_data = sp_inflation_data.dropna(subset=[
     #     'S&P 500 MA', 'Inflation Rate MA', 'S&P 500 MA Growth', 'Inflation Rate MA Growth'
     # ]).copy()
     # print("DEBUG: After dropna, sp_inflation_data shape:", sp_inflation_data.shape)
 t1 = time.time()
-print(f"DEBUG: Growth computation took {t1-t0:.2f} seconds.")
+
 
 # Now that we have the growth, we can get min and max values
 sp500_growth = sp_inflation_data["S&P 500 MA Growth"].dropna()
@@ -337,16 +321,16 @@ inflation_max = float(inflation_growth.max())
 t0 = time.time()
 with st.spinner("Assigning Regimes..."):
     sp_inflation_data = assign_regimes(sp_inflation_data, regime_definitions)
-    print("DEBUG: Regimes assigned.")
+
 t1 = time.time()
-print(f"DEBUG: Regime assignment took {t1-t0:.2f} seconds.")
+
 
 # Handle any NaN regimes (should not happen)
 sp_inflation_data["Regime"] = sp_inflation_data["Regime"].fillna("Unknown")
 
 # --- Logging for Tab Rendering ---
 t0 = time.time()
-print("DEBUG: Starting Tab rendering.")
+
 tab_objs = st.tabs(
     [
         "Regime Visualization",
@@ -359,7 +343,7 @@ tab_objs = st.tabs(
     ]
 )
 t1 = time.time()
-print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
+
 
 # Tab 1: Regime Visualization
 import tabs.regime
@@ -440,12 +424,8 @@ def render_asset_analysis_tab(
         for asset in asset_list
         if asset in asset_ts_data.columns
     }
-    print(f"[DEBUG] asset_first_date for tab '{title}':")
-    for asset, date in asset_first_date.items():
-        print(f"    {asset}: {date}")
+
     # Use the tab-specific include_late_assets value
-    passed_cutoff_date = cutoff_date  # Rename argument to avoid confusion
-    from core.constants import asset_list_tab3  # Remove asset_list_tab6 import here
 
     if passed_cutoff_date is not None:
         cutoff_date = (
@@ -455,18 +435,14 @@ def render_asset_analysis_tab(
         )
     elif asset_list == asset_list_tab3:
         cutoff_date = datetime.date(1994, 6, 30)  # Hardcoded for Tab 3 (Large vs Small)
-        print(f"[DEBUG] Using hardcoded cutoff_date for tab '{title}': {cutoff_date}")
+
     # REMOVED: elif asset_list == asset_list_tab6: condition
     else:
         cutoff_date = st.session_state.get("ma_start_date")  # Fallback to MA start date
-        print(
-            f"[DEBUG] Using fallback cutoff_date (ma_start_date) for tab '{title}': {cutoff_date}"
-        )
 
-    print(
-        f"[DEBUG] Final cutoff_date being used for filtering in tab '{title}': {cutoff_date}"
-    )
-    print(f"[DEBUG] include_late_assets for tab '{title}': {include_late_assets}")
+
+
+
 
     if not include_late_assets and cutoff_date is not None:
         eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
@@ -480,7 +456,7 @@ def render_asset_analysis_tab(
                 eligible_assets = []
     else:
         eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
-    print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
+
 
     # --- Central eligibility function for trade inclusion ---
     def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):

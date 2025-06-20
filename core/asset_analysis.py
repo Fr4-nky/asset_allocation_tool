@@ -64,26 +64,25 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
         asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
         for asset in asset_list if asset in asset_ts_data.columns
     }
-    print(f"[DEBUG] asset_first_date for tab '{title}':")
-    for asset, date in asset_first_date.items():
-        print(f"    {asset}: {date}")
+
+
     # Use the tab-specific include_late_assets value
     passed_cutoff_date = cutoff_date # Rename argument to avoid confusion
     from core.constants import asset_list_tab3 # Remove asset_list_tab6 import here
 
     if passed_cutoff_date is not None:
         cutoff_date = passed_cutoff_date # Use the date calculated externally and passed in
-        print(f"[DEBUG] Using passed cutoff_date for tab '{title}': {cutoff_date}")
+
     elif asset_list == asset_list_tab3:
         cutoff_date = datetime.date(1994, 6, 30) # Hardcoded for Tab 3 (Large vs Small)
-        print(f"[DEBUG] Using hardcoded cutoff_date for tab '{title}': {cutoff_date}")
+
     # REMOVED: elif asset_list == asset_list_tab6: condition
     else:
         cutoff_date = st.session_state.get('ma_start_date') # Fallback to MA start date
-        print(f"[DEBUG] Using fallback cutoff_date (ma_start_date) for tab '{title}': {cutoff_date}")
 
-    print(f"[DEBUG] Final cutoff_date being used for filtering in tab '{title}': {cutoff_date}")
-    print(f"[DEBUG] include_late_assets for tab '{title}': {include_late_assets}")
+
+
+
 
     if not include_late_assets and cutoff_date is not None:
         eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
@@ -95,7 +94,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
                 eligible_assets = []
     else:
         eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
-    print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
+
 
     # --- Central eligibility function for trade inclusion ---
     def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
@@ -183,7 +182,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
     # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
 
     show_aggregated_metrics = st.session_state.is_premium_user
-    print(f"[DEBUG] show_aggregated_metrics for tab '{title}': {show_aggregated_metrics}")
+
     tab.markdown("""
         <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
         """, unsafe_allow_html=True)

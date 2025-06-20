@@ -45,7 +45,7 @@ def plot_asset_performance_over_time(merged_asset_data, asset_list, asset_colors
             ))
     fig.update_layout(shapes=shapes)
     # Log regimes for debugging
-    print("DEBUG: plot_asset_performance_over_time regimes:", merged_asset_data['Regime'].value_counts().to_dict())
+
     # Plot normalized asset lines
     for asset in asset_list:
         if asset not in merged_asset_data.columns:
@@ -127,7 +127,7 @@ def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, r
             pivot_table = pivot_table.reindex(all_regimes, fill_value=np.nan)
         except Exception as e:
             st.error(f"Error pivoting data for metric '{metric}': {e}")
-            print(f"[ERROR] Pivoting failed for {metric}. Avg metrics table head:\n{avg_metrics_table.head()}")
+
             continue # Skip this metric if pivoting fails
 
         # --- Add Bar Traces based on Pivoted Data ---

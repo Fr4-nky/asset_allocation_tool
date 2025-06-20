@@ -111,7 +111,7 @@ def load_data():
             try:
                 results[name] = future.result()
             except Exception as e:
-                print(f"ERROR fetching {name}: {e}")
+
                 results[name] = None
 
     # --- Check for failed loads and warn user ---
@@ -119,7 +119,7 @@ def load_data():
     for name, df in results.items():
         if df is None:
             failed_loads.append(name)
-            print(f"LOADER_WARNING: Failed to load data for '{name}'.")
+
     if failed_loads:
         st.warning(f"Could not load data for the following assets after retries: {', '.join(failed_loads)}. They will be excluded from the analysis.")
 
@@ -169,36 +169,36 @@ def load_data():
     df_gld = results.get('SPDR Gold Shares (GLD)')
 
     # Data preprocessing, resampling, merging, and filtering
-    print("DEBUG: Applying resampling and merging logic...")
+
     today = pd.Timestamp.today().normalize()
 
     # 1. Resample all series to Business Month End and correct future dates
     def resample_and_correct_date(df, name):
         if df is not None:
-            print(f"DEBUG: Resampling {name} (initial shape: {df.shape})")
-            print(f"DEBUG: {name} last date before resample: {df.index.max()}")
+
+
             df_resampled = df.resample('BME').last()
-            print(f"DEBUG: Resampled {name} shape: {df_resampled.shape}")
-            print(f"DEBUG: {name} last date after resample: {df_resampled.index.max()}")
+
+
             if not df_resampled.empty and df_resampled.index.max() > today:
-                print(f"WARN: {name} last date {df_resampled.index.max()} is after today {today}. Correcting...")
+
                 original_index_name = df_resampled.index.name
                 df_resampled.index = df_resampled.index.where(df_resampled.index <= today, today)
                 df_resampled.index.name = original_index_name
-                print(f"DEBUG: {name} last date after correction: {df_resampled.index.max()}")
+
             return df_resampled
         return None
 
     df_sp500_resampled = resample_and_correct_date(df_sp500, 'S&P 500')
     if df_sp500_resampled is not None and not df_sp500_resampled.empty:
-        print(f"DEBUG_LATEST_DATE: df_sp500_resampled last date: {df_sp500_resampled.index.max()}")
+        pass
 
     df_inflation_resampled = resample_and_correct_date(df_inflation, 'Inflation Rate')
     # df_inflation_interpolated is created from df_inflation_resampled later
 
     df_cpi_resampled = resample_and_correct_date(df_cpi, 'CPI') # Resample CPI
     if df_cpi_resampled is not None and not df_cpi_resampled.empty:
-        print(f"DEBUG_LATEST_DATE: df_cpi_resampled last date: {df_cpi_resampled.index.max()}")
+        pass
 
     df_bonds_resampled = resample_and_correct_date(df_bonds, 'Bonds')
     df_gold_resampled = resample_and_correct_date(df_gold, 'Gold')
@@ -206,26 +206,26 @@ def load_data():
     # --- Interpolate Inflation Data to fill BME gaps ---
     df_inflation_interpolated = None
     if df_inflation_resampled is not None and not df_inflation_resampled.empty:
-        print(f"DEBUG: Inflation resampled shape before interpolation: {df_inflation_resampled.shape}")
-        print(f"DEBUG: Inflation resampled head before interpolation:\n{df_inflation_resampled.head()}")
-        print(f"DEBUG: Inflation resampled tail before interpolation:\n{df_inflation_resampled.tail()}")
+
+
+
         col = df_inflation_resampled.columns[0]
         # Ensure index is datetime and sorted
         df_inflation_resampled = df_inflation_resampled.sort_index()
         # Interpolate missing values (time-based)
         df_inflation_interpolated = df_inflation_resampled.copy()
         df_inflation_interpolated[col] = df_inflation_interpolated[col].interpolate(method='time')
-        print(f"DEBUG: Inflation after interpolation head:\n{df_inflation_interpolated.head()}")
-        print(f"DEBUG: Inflation after interpolation tail:\n{df_inflation_interpolated.tail()}")
+
+
         # Interpolation alone is sufficient; no ffill/bfill needed
         # Confirm no NaNs remain after interpolation
-        print(f"DEBUG: Inflation after interpolation (final, no ffill/bfill) head:\n{df_inflation_interpolated.head()}")
-        print(f"DEBUG: Inflation after interpolation (final, no ffill/bfill) tail:\n{df_inflation_interpolated.tail()}")
+
+
         # Keep the column name as 'Inflation Rate' for merging
         df_inflation_interpolated.columns = ['Inflation Rate']
-        print(f"DEBUG: Inflation interpolated columns: {df_inflation_interpolated.columns.tolist()}")
+
         if not df_inflation_interpolated.empty:
-            print(f"DEBUG_LATEST_DATE: df_inflation_interpolated last date: {df_inflation_interpolated.index.max()}")
+            pass
 
 
     df_msci_large_resampled = resample_and_correct_date(df_msci_large, 'MSCI USA Large Cap')
@@ -279,18 +279,18 @@ def load_data():
         
         sp_inflation_df = pd.merge(df_sp500_resampled, df_inflation_interpolated, left_index=True, right_index=True, how='inner')
         if not sp_inflation_df.empty:
-            print(f"DEBUG_LATEST_DATE: sp_inflation_df after S&P500/Inflation inner merge last date: {sp_inflation_df.index.max()}")
+            pass
     elif df_sp500_resampled is not None:
         sp_inflation_df = df_sp500_resampled.copy()
         sp_inflation_df['Inflation Rate'] = np.nan
-        print("LOADER_WARNING: Interpolated Inflation Rate data not available. Proceeding with S&P 500 only for sp_inflation_df base.")
+
     elif df_inflation_interpolated is not None:
         sp_inflation_df = df_inflation_interpolated.copy()
         sp_inflation_df['S&P 500'] = np.nan
-        print("LOADER_WARNING: S&P 500 data not available. Proceeding with Interpolated Inflation Rate only for sp_inflation_df base.")
+
     else:
         # If both S&P500 and Inflation are missing, sp_inflation_df will be empty. Further processing might be limited.
-        print("LOADER_ERROR: Both S&P 500 and Inflation Rate data are missing. Regime analysis will be impacted.")
+
         # Initialize with an empty DataFrame with a DateTime index if it's truly empty
         if sp_inflation_df.empty:
             sp_inflation_df = pd.DataFrame(index=pd.to_datetime([]))
@@ -312,11 +312,11 @@ def load_data():
         
         sp_inflation_df = pd.merge(sp_inflation_df, df_cpi_resampled_renamed[['CPI']], left_index=True, right_index=True, how='left')
         if not sp_inflation_df.empty:
-            print(f"DEBUG_LATEST_DATE: sp_inflation_df after CPI left merge last date: {sp_inflation_df.index.max()}")
+            pass
     elif not sp_inflation_df.empty:
         # If CPI data is not available, add a NaN column for CPI to maintain structure
         sp_inflation_df['CPI'] = np.nan
-        print("LOADER_INFO: CPI data not available. 'CPI' column added with NaNs.")
+
     # If sp_inflation_df is empty from the start, and CPI is also not available, it remains empty.
     # If sp_inflation_df is empty but CPI is available, it's an edge case not directly handled by adding CPI to an empty df here.
     # However, the primary logic relies on sp_inflation_df being populated by S&P500 and/or Inflation first.

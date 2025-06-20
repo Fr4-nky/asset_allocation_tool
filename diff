@@ -1,0 +1,525 @@
+diff --git a/core/asset_analysis.py b/core/asset_analysis.py
+index 754a033..f7a72fa 100644
+--- a/core/asset_analysis.py
++++ b/core/asset_analysis.py
+@@ -64,26 +64,25 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
+         asset: asset_ts_data.loc[asset_ts_data[asset].notna(), 'DateTime'].min().date()
+         for asset in asset_list if asset in asset_ts_data.columns
+     }
+-    print(f"[DEBUG] asset_first_date for tab '{title}':")
+-    for asset, date in asset_first_date.items():
+-        print(f"    {asset}: {date}")
++
++
+     # Use the tab-specific include_late_assets value
+     passed_cutoff_date = cutoff_date # Rename argument to avoid confusion
+     from core.constants import asset_list_tab3 # Remove asset_list_tab6 import here
+ 
+     if passed_cutoff_date is not None:
+         cutoff_date = passed_cutoff_date # Use the date calculated externally and passed in
+-        print(f"[DEBUG] Using passed cutoff_date for tab '{title}': {cutoff_date}")
++
+     elif asset_list == asset_list_tab3:
+         cutoff_date = datetime.date(1994, 6, 30) # Hardcoded for Tab 3 (Large vs Small)
+-        print(f"[DEBUG] Using hardcoded cutoff_date for tab '{title}': {cutoff_date}")
++
+     # REMOVED: elif asset_list == asset_list_tab6: condition
+     else:
+         cutoff_date = st.session_state.get('ma_start_date') # Fallback to MA start date
+-        print(f"[DEBUG] Using fallback cutoff_date (ma_start_date) for tab '{title}': {cutoff_date}")
+ 
+-    print(f"[DEBUG] Final cutoff_date being used for filtering in tab '{title}': {cutoff_date}")
+-    print(f"[DEBUG] include_late_assets for tab '{title}': {include_late_assets}")
++
++
++
+ 
+     if not include_late_assets and cutoff_date is not None:
+         eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+@@ -95,7 +94,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
+                 eligible_assets = []
+     else:
+         eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
+-    print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
++
+ 
+     # --- Central eligibility function for trade inclusion ---
+     def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
+@@ -183,7 +182,7 @@ def render_asset_analysis_tab(tab, title, asset_list, asset_colors, regime_bg_co
+     # --- AGGREGATED METRICS TABLE --- (Keep title, use upstream logic for avg_metrics_table)
+ 
+     show_aggregated_metrics = st.session_state.is_premium_user
+-    print(f"[DEBUG] show_aggregated_metrics for tab '{title}': {show_aggregated_metrics}")
++
+     tab.markdown("""
+         <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Aggregated Performance Metrics</h2>
+         """, unsafe_allow_html=True)
+diff --git a/core/charts.py b/core/charts.py
+index 89f836d..fedca9e 100644
+--- a/core/charts.py
++++ b/core/charts.py
+@@ -45,7 +45,7 @@ def plot_asset_performance_over_time(merged_asset_data, asset_list, asset_colors
+             ))
+     fig.update_layout(shapes=shapes)
+     # Log regimes for debugging
+-    print("DEBUG: plot_asset_performance_over_time regimes:", merged_asset_data['Regime'].value_counts().to_dict())
++
+     # Plot normalized asset lines
+     for asset in asset_list:
+         if asset not in merged_asset_data.columns:
+@@ -127,7 +127,7 @@ def plot_metrics_bar_charts(avg_metrics_table, asset_colors, regime_bg_colors, r
+             pivot_table = pivot_table.reindex(all_regimes, fill_value=np.nan)
+         except Exception as e:
+             st.error(f"Error pivoting data for metric '{metric}': {e}")
+-            print(f"[ERROR] Pivoting failed for {metric}. Avg metrics table head:\n{avg_metrics_table.head()}")
++
+             continue # Skip this metric if pivoting fails
+ 
+         # --- Add Bar Traces based on Pivoted Data ---
+diff --git a/core/fetch.py b/core/fetch.py
+index 1e8c4b1..9a04f2b 100644
+--- a/core/fetch.py
++++ b/core/fetch.py
+@@ -15,13 +15,13 @@ def decode_base64_data(encoded_data):
+             value_float = float(value_str)
+             decoded_list.append([date_str, value_float])
+         except (base64.binascii.Error, UnicodeDecodeError, ValueError) as e:
+-            print(f"WARNING: Skipping record due to decoding/conversion error: {e} - Date: {date_b64}, Value: {value_b64}")
++            pass
+     return decoded_list
+ 
+ @st.cache_data
+ def fetch_and_decode(url, column_name, retries=3, initial_backoff=1):
+     """Fetches data from a URL, decodes it, and returns a Pandas DataFrame with retries."""
+-    print(f"INFO: Fetching data from {url}...")
++
+     backoff = initial_backoff
+     for attempt in range(retries + 1):
+         try:
+@@ -30,42 +30,42 @@ def fetch_and_decode(url, column_name, retries=3, initial_backoff=1):
+             encoded_data = response.json()
+             decoded_data = decode_base64_data(encoded_data)
+             if not decoded_data:
+-                print(f"WARNING: No valid data decoded from {url}. Returning None.")
++
+                 return None # No point retrying if decoding fails
+             df = pd.DataFrame(decoded_data, columns=['Date', column_name])
+             df['Date'] = pd.to_datetime(df['Date'])
+             df = df.set_index('Date')
+-            print(f"SUCCESS: Successfully fetched and processed data for {column_name}.")
++
+             return df # Success, exit retry loop
+         
+         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+-            print(f"WARNING: Attempt {attempt + 1}/{retries + 1} failed for {url} due to network error: {e}")
++
+             if attempt < retries:
+-                print(f"Retrying in {backoff:.2f} seconds...")
++
+                 time.sleep(backoff)
+                 backoff *= 2 # Exponential backoff
+             else:
+-                print(f"ERROR: Max retries reached for {url}. Network error: {e}")
++
+                 return None
+                 
+         except requests.exceptions.HTTPError as e:
+             # Non-transient HTTP errors (e.g., 404 Not Found, 403 Forbidden)
+-            print(f"ERROR: HTTP error fetching data from {url}: {e}. No retry needed.")
++
+             return None # Don't retry on client/server errors like 404
+             
+         except requests.exceptions.RequestException as e:
+             # Other request exceptions (e.g., Invalid URL)
+-            print(f"ERROR: Request error fetching data from {url}: {e}. No retry needed.")
++
+             return None # Don't retry on fundamental request issues
+             
+         except json.JSONDecodeError as e:
+-            print(f"ERROR: Error decoding JSON from {url}. Response text: {response.text[:200]}... Error: {e}. No retry needed.")
++
+             return None # Don't retry if content is not JSON
+             
+         except Exception as e:
+-            print(f"ERROR: An unexpected error occurred while processing {url}: {e}. No retry needed.")
++
+             return None # Don't retry on unexpected errors
+             
+     # Should theoretically not be reached if logic is correct, but as a fallback:
+-    print(f"ERROR: Failed to fetch data from {url} after {retries + 1} attempts.")
++
+     return None
+diff --git a/core/loader.py b/core/loader.py
+index 556bbf3..3b4f8ae 100644
+--- a/core/loader.py
++++ b/core/loader.py
+@@ -111,7 +111,7 @@ def load_data():
+             try:
+                 results[name] = future.result()
+             except Exception as e:
+-                print(f"ERROR fetching {name}: {e}")
++
+                 results[name] = None
+ 
+     # --- Check for failed loads and warn user ---
+@@ -119,7 +119,7 @@ def load_data():
+     for name, df in results.items():
+         if df is None:
+             failed_loads.append(name)
+-            print(f"LOADER_WARNING: Failed to load data for '{name}'.")
++
+     if failed_loads:
+         st.warning(f"Could not load data for the following assets after retries: {', '.join(failed_loads)}. They will be excluded from the analysis.")
+ 
+@@ -169,36 +169,36 @@ def load_data():
+     df_gld = results.get('SPDR Gold Shares (GLD)')
+ 
+     # Data preprocessing, resampling, merging, and filtering
+-    print("DEBUG: Applying resampling and merging logic...")
++
+     today = pd.Timestamp.today().normalize()
+ 
+     # 1. Resample all series to Business Month End and correct future dates
+     def resample_and_correct_date(df, name):
+         if df is not None:
+-            print(f"DEBUG: Resampling {name} (initial shape: {df.shape})")
+-            print(f"DEBUG: {name} last date before resample: {df.index.max()}")
++
++
+             df_resampled = df.resample('BME').last()
+-            print(f"DEBUG: Resampled {name} shape: {df_resampled.shape}")
+-            print(f"DEBUG: {name} last date after resample: {df_resampled.index.max()}")
++
++
+             if not df_resampled.empty and df_resampled.index.max() > today:
+-                print(f"WARN: {name} last date {df_resampled.index.max()} is after today {today}. Correcting...")
++
+                 original_index_name = df_resampled.index.name
+                 df_resampled.index = df_resampled.index.where(df_resampled.index <= today, today)
+                 df_resampled.index.name = original_index_name
+-                print(f"DEBUG: {name} last date after correction: {df_resampled.index.max()}")
++
+             return df_resampled
+         return None
+ 
+     df_sp500_resampled = resample_and_correct_date(df_sp500, 'S&P 500')
+     if df_sp500_resampled is not None and not df_sp500_resampled.empty:
+-        print(f"DEBUG_LATEST_DATE: df_sp500_resampled last date: {df_sp500_resampled.index.max()}")
++        pass
+ 
+     df_inflation_resampled = resample_and_correct_date(df_inflation, 'Inflation Rate')
+     # df_inflation_interpolated is created from df_inflation_resampled later
+ 
+     df_cpi_resampled = resample_and_correct_date(df_cpi, 'CPI') # Resample CPI
+     if df_cpi_resampled is not None and not df_cpi_resampled.empty:
+-        print(f"DEBUG_LATEST_DATE: df_cpi_resampled last date: {df_cpi_resampled.index.max()}")
++        pass
+ 
+     df_bonds_resampled = resample_and_correct_date(df_bonds, 'Bonds')
+     df_gold_resampled = resample_and_correct_date(df_gold, 'Gold')
+@@ -206,26 +206,26 @@ def load_data():
+     # --- Interpolate Inflation Data to fill BME gaps ---
+     df_inflation_interpolated = None
+     if df_inflation_resampled is not None and not df_inflation_resampled.empty:
+-        print(f"DEBUG: Inflation resampled shape before interpolation: {df_inflation_resampled.shape}")
+-        print(f"DEBUG: Inflation resampled head before interpolation:\n{df_inflation_resampled.head()}")
+-        print(f"DEBUG: Inflation resampled tail before interpolation:\n{df_inflation_resampled.tail()}")
++
++
++
+         col = df_inflation_resampled.columns[0]
+         # Ensure index is datetime and sorted
+         df_inflation_resampled = df_inflation_resampled.sort_index()
+         # Interpolate missing values (time-based)
+         df_inflation_interpolated = df_inflation_resampled.copy()
+         df_inflation_interpolated[col] = df_inflation_interpolated[col].interpolate(method='time')
+-        print(f"DEBUG: Inflation after interpolation head:\n{df_inflation_interpolated.head()}")
+-        print(f"DEBUG: Inflation after interpolation tail:\n{df_inflation_interpolated.tail()}")
++
++
+         # Interpolation alone is sufficient; no ffill/bfill needed
+         # Confirm no NaNs remain after interpolation
+-        print(f"DEBUG: Inflation after interpolation (final, no ffill/bfill) head:\n{df_inflation_interpolated.head()}")
+-        print(f"DEBUG: Inflation after interpolation (final, no ffill/bfill) tail:\n{df_inflation_interpolated.tail()}")
++
++
+         # Keep the column name as 'Inflation Rate' for merging
+         df_inflation_interpolated.columns = ['Inflation Rate']
+-        print(f"DEBUG: Inflation interpolated columns: {df_inflation_interpolated.columns.tolist()}")
++
+         if not df_inflation_interpolated.empty:
+-            print(f"DEBUG_LATEST_DATE: df_inflation_interpolated last date: {df_inflation_interpolated.index.max()}")
++            pass
+ 
+ 
+     df_msci_large_resampled = resample_and_correct_date(df_msci_large, 'MSCI USA Large Cap')
+@@ -279,18 +279,18 @@ def load_data():
+         
+         sp_inflation_df = pd.merge(df_sp500_resampled, df_inflation_interpolated, left_index=True, right_index=True, how='inner')
+         if not sp_inflation_df.empty:
+-            print(f"DEBUG_LATEST_DATE: sp_inflation_df after S&P500/Inflation inner merge last date: {sp_inflation_df.index.max()}")
++            pass
+     elif df_sp500_resampled is not None:
+         sp_inflation_df = df_sp500_resampled.copy()
+         sp_inflation_df['Inflation Rate'] = np.nan
+-        print("LOADER_WARNING: Interpolated Inflation Rate data not available. Proceeding with S&P 500 only for sp_inflation_df base.")
++
+     elif df_inflation_interpolated is not None:
+         sp_inflation_df = df_inflation_interpolated.copy()
+         sp_inflation_df['S&P 500'] = np.nan
+-        print("LOADER_WARNING: S&P 500 data not available. Proceeding with Interpolated Inflation Rate only for sp_inflation_df base.")
++
+     else:
+         # If both S&P500 and Inflation are missing, sp_inflation_df will be empty. Further processing might be limited.
+-        print("LOADER_ERROR: Both S&P 500 and Inflation Rate data are missing. Regime analysis will be impacted.")
++
+         # Initialize with an empty DataFrame with a DateTime index if it's truly empty
+         if sp_inflation_df.empty:
+             sp_inflation_df = pd.DataFrame(index=pd.to_datetime([]))
+@@ -312,11 +312,11 @@ def load_data():
+         
+         sp_inflation_df = pd.merge(sp_inflation_df, df_cpi_resampled_renamed[['CPI']], left_index=True, right_index=True, how='left')
+         if not sp_inflation_df.empty:
+-            print(f"DEBUG_LATEST_DATE: sp_inflation_df after CPI left merge last date: {sp_inflation_df.index.max()}")
++            pass
+     elif not sp_inflation_df.empty:
+         # If CPI data is not available, add a NaN column for CPI to maintain structure
+         sp_inflation_df['CPI'] = np.nan
+-        print("LOADER_INFO: CPI data not available. 'CPI' column added with NaNs.")
++
+     # If sp_inflation_df is empty from the start, and CPI is also not available, it remains empty.
+     # If sp_inflation_df is empty but CPI is available, it's an edge case not directly handled by adding CPI to an empty df here.
+     # However, the primary logic relies on sp_inflation_df being populated by S&P500 and/or Inflation first.
+diff --git a/streamlit_app.py b/streamlit_app.py
+index ea6e064..b45c86d 100644
+--- a/streamlit_app.py
++++ b/streamlit_app.py
+@@ -219,7 +219,7 @@ if start_date > end_date:
+     st.sidebar.error("Start Date must be on or before End Date")
+     st.stop()
+ # Debug logging
+-print(f"DEBUG: Selected date range: {start_date} to {end_date}")
++
+ # Convert to Timestamps
+ start_date, end_date = pd.to_datetime(start_date), pd.to_datetime(end_date)
+ # Filter both datasets
+@@ -230,9 +230,7 @@ sp_inflation_data = sp_inflation_data[
+ asset_ts_data = asset_ts_data[
+     (asset_ts_data["DateTime"] >= start_date) & (asset_ts_data["DateTime"] <= end_date)
+ ].copy()
+-print(
+-    f"DEBUG: After filtering: SP shape {sp_inflation_data.shape}, Asset shape {asset_ts_data.shape}"
+-)
++
+ 
+ # --- Apply S&P 500 Inflation Adjustment if selected ---
+ # The key used here must match the key of the checkbox in the sidebar
+@@ -250,7 +248,7 @@ if st.session_state.get('adjust_sp500_for_inflation_sidebar_checkbox', False):
+             if not cpi_series_filled.dropna().empty:
+                 sp_inflation_data['S&P 500 Original (Nominal)'] = sp_inflation_data['S&P 500'].copy()
+                 sp_inflation_data['S&P 500'] = sp_inflation_data['S&P 500'] / cpi_series_filled
+-                print("INFO: S&P 500 data for regime calculation has been adjusted for inflation using forward-filled CPI.")
++
+             else:
+                 st.warning("Cannot adjust S&P 500 for inflation: Forward-filled CPI series resulted in no valid data (e.g., all zeros or NaNs). Using unadjusted S&P 500.")
+         else:
+@@ -264,7 +262,7 @@ else:
+         # Optionally remove the temporary column if no longer needed, 
+         # but it's good to keep it if the user might toggle the checkbox back and forth.
+         # del sp_inflation_data['S&P 500 Original (Nominal)'] 
+-        print("INFO: Using nominal S&P 500 data as inflation adjustment is not selected.")
++
+ 
+ 
+ # --- Logging for Moving Average Computation ---
+@@ -276,7 +274,7 @@ with st.spinner("Computing Moving Averages..."):
+     sp_inflation_data["Inflation Rate MA"] = compute_moving_average(
+         sp_inflation_data["Inflation Rate"], window_size=inflation_n
+     )
+-    print("DEBUG: Moving averages computed.")
++
+     # Compute moving-average-derived cutoff date
+     ma_start_date = (
+         sp_inflation_data.loc[sp_inflation_data["S&P 500 MA"].notna(), "DateTime"]
+@@ -285,7 +283,7 @@ with st.spinner("Computing Moving Averages..."):
+     )
+     st.session_state["ma_start_date"] = ma_start_date
+ t1 = time.time()
+-print(f"DEBUG: Moving average computation took {t1-t0:.2f} seconds.")
++
+ 
+ # --- Logging for Growth Computation ---
+ t0 = time.time()
+@@ -296,33 +294,19 @@ with st.spinner("Computing Growth..."):
+     sp_inflation_data["Inflation Rate MA Growth"] = compute_growth(
+         sp_inflation_data["Inflation Rate MA"]
+     )
+-    print("DEBUG: Growth computed.")
++
+     # --- DEBUG PRINTS FOR GROWTH COLUMNS ---
+-    print(
+-        "DEBUG: S&P 500 MA Growth min/max:",
+-        sp_inflation_data["S&P 500 MA Growth"].min(),
+-        sp_inflation_data["S&P 500 MA Growth"].max(),
+-    )
+-    print(
+-        "DEBUG: Inflation Rate MA Growth min/max:",
+-        sp_inflation_data["Inflation Rate MA Growth"].min(),
+-        sp_inflation_data["Inflation Rate MA Growth"].max(),
+-    )
+-    print(
+-        "DEBUG: S&P 500 MA Growth sample:",
+-        sp_inflation_data["S&P 500 MA Growth"].head(),
+-    )
+-    print(
+-        "DEBUG: Inflation Rate MA Growth sample:",
+-        sp_inflation_data["Inflation Rate MA Growth"].head(),
+-    )
++
++
++
++
+     # --- DO NOT DROP ROWS WITH NANs IN MA OR GROWTH COLUMNS BEFORE REGIME ASSIGNMENT OR PLOTTING (MATCH OLD BEHAVIOR) ---
+     # sp_inflation_data = sp_inflation_data.dropna(subset=[
+     #     'S&P 500 MA', 'Inflation Rate MA', 'S&P 500 MA Growth', 'Inflation Rate MA Growth'
+     # ]).copy()
+     # print("DEBUG: After dropna, sp_inflation_data shape:", sp_inflation_data.shape)
+ t1 = time.time()
+-print(f"DEBUG: Growth computation took {t1-t0:.2f} seconds.")
++
+ 
+ # Now that we have the growth, we can get min and max values
+ sp500_growth = sp_inflation_data["S&P 500 MA Growth"].dropna()
+@@ -337,16 +321,16 @@ inflation_max = float(inflation_growth.max())
+ t0 = time.time()
+ with st.spinner("Assigning Regimes..."):
+     sp_inflation_data = assign_regimes(sp_inflation_data, regime_definitions)
+-    print("DEBUG: Regimes assigned.")
++
+ t1 = time.time()
+-print(f"DEBUG: Regime assignment took {t1-t0:.2f} seconds.")
++
+ 
+ # Handle any NaN regimes (should not happen)
+ sp_inflation_data["Regime"] = sp_inflation_data["Regime"].fillna("Unknown")
+ 
+ # --- Logging for Tab Rendering ---
+ t0 = time.time()
+-print("DEBUG: Starting Tab rendering.")
++
+ tab_objs = st.tabs(
+     [
+         "Regime Visualization",
+@@ -359,7 +343,7 @@ tab_objs = st.tabs(
+     ]
+ )
+ t1 = time.time()
+-print(f"DEBUG: Tab setup took {t1-t0:.2f} seconds.")
++
+ 
+ # Tab 1: Regime Visualization
+ import tabs.regime
+@@ -440,12 +424,8 @@ def render_asset_analysis_tab(
+         for asset in asset_list
+         if asset in asset_ts_data.columns
+     }
+-    print(f"[DEBUG] asset_first_date for tab '{title}':")
+-    for asset, date in asset_first_date.items():
+-        print(f"    {asset}: {date}")
++
+     # Use the tab-specific include_late_assets value
+-    passed_cutoff_date = cutoff_date  # Rename argument to avoid confusion
+-    from core.constants import asset_list_tab3  # Remove asset_list_tab6 import here
+ 
+     if passed_cutoff_date is not None:
+         cutoff_date = (
+@@ -455,18 +435,14 @@ def render_asset_analysis_tab(
+         )
+     elif asset_list == asset_list_tab3:
+         cutoff_date = datetime.date(1994, 6, 30)  # Hardcoded for Tab 3 (Large vs Small)
+-        print(f"[DEBUG] Using hardcoded cutoff_date for tab '{title}': {cutoff_date}")
++
+     # REMOVED: elif asset_list == asset_list_tab6: condition
+     else:
+         cutoff_date = st.session_state.get("ma_start_date")  # Fallback to MA start date
+-        print(
+-            f"[DEBUG] Using fallback cutoff_date (ma_start_date) for tab '{title}': {cutoff_date}"
+-        )
+ 
+-    print(
+-        f"[DEBUG] Final cutoff_date being used for filtering in tab '{title}': {cutoff_date}"
+-    )
+-    print(f"[DEBUG] include_late_assets for tab '{title}': {include_late_assets}")
++
++
++
+ 
+     if not include_late_assets and cutoff_date is not None:
+         eligible_assets = [a for a, d in asset_first_date.items() if d <= cutoff_date]
+@@ -480,7 +456,7 @@ def render_asset_analysis_tab(
+                 eligible_assets = []
+     else:
+         eligible_assets = [a for a in asset_list if a in asset_ts_data.columns]
+-    print(f"[DEBUG] eligible_assets for tab '{title}': {eligible_assets}")
++
+ 
+     # --- Central eligibility function for trade inclusion ---
+     def is_trade_eligible(row, eligible_assets, cutoff_date, pre_cutoff_override):
+diff --git a/tabs/regime.py b/tabs/regime.py
+index 7992f92..483ea34 100644
+--- a/tabs/regime.py
++++ b/tabs/regime.py
+@@ -21,7 +21,7 @@ def render(tab, sp_inflation_data):
+         """, unsafe_allow_html=True
+     )
+     t_tab1 = time.time()
+-    print("DEBUG: Rendering Tab 1: Regime Visualization.")
++
+ 
+     # Settings for chart (all enabled)
+     show_sp500_ma = True
+@@ -33,7 +33,7 @@ def render(tab, sp_inflation_data):
+ 
+     # Initialize figure
+     fig = go.Figure()
+-    print("DEBUG: Tab 1 - Initialized go.Figure.")
++
+ 
+     # Check if S&P 500 is inflation-adjusted to update trace names and hover info
+     # This key must match the key of the checkbox in the sidebar (streamlit_app.py)
+@@ -59,7 +59,7 @@ def render(tab, sp_inflation_data):
+         sp_inflation_data['Regime'] != sp_inflation_data['Regime'].shift()
+     ).cumsum()
+     grouped = sp_inflation_data.groupby(['Regime', 'Regime_Change'])
+-    print(f"DEBUG: Tab 1 - Grouped regimes. Groups: {len(grouped)}")
++
+ 
+     # Collect periods
+     periods = []
+@@ -81,7 +81,7 @@ def render(tab, sp_inflation_data):
+             end = start
+         color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
+         fig.add_vrect(x0=start, x1=end, fillcolor=color, opacity=1.0, layer="below", line_width=0)
+-    print(f"DEBUG: Tab 1 - Added {len(dfp)} vrects.")
++
+ 
+     # Prepare customdata for hover
+     req = ['Regime', 'S&P 500', 'S&P 500 MA', 'Inflation Rate', 'Inflation Rate MA']
+@@ -93,7 +93,7 @@ def render(tab, sp_inflation_data):
+             sp_inflation_data['Inflation Rate MA'].fillna(0),
+             labels]
+     customdata = np.stack(data, axis=-1)
+-    print(f"DEBUG: Tab 1 - Customdata shape: {customdata.shape}")
++
+ 
+     # Add traces
+     if show_sp500:
+@@ -140,7 +140,7 @@ def render(tab, sp_inflation_data):
+             customdata=customdata,
+             hovertemplate='Inflation Rate MA: %{customdata[3]:.2f}<br>Regime: %{customdata[4]}<extra></extra>'
+         ))
+-    print("DEBUG: Tab 1 - Added all traces.")
++
+ 
+     # Layout
+     fig.update_layout(

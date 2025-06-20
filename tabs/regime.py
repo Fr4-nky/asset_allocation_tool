@@ -21,7 +21,7 @@ def render(tab, sp_inflation_data):
         """, unsafe_allow_html=True
     )
     t_tab1 = time.time()
-    print("DEBUG: Rendering Tab 1: Regime Visualization.")
+
 
     # Settings for chart (all enabled)
     show_sp500_ma = True
@@ -33,7 +33,7 @@ def render(tab, sp_inflation_data):
 
     # Initialize figure
     fig = go.Figure()
-    print("DEBUG: Tab 1 - Initialized go.Figure.")
+
 
     # Check if S&P 500 is inflation-adjusted to update trace names and hover info
     # This key must match the key of the checkbox in the sidebar (streamlit_app.py)
@@ -59,7 +59,7 @@ def render(tab, sp_inflation_data):
         sp_inflation_data['Regime'] != sp_inflation_data['Regime'].shift()
     ).cumsum()
     grouped = sp_inflation_data.groupby(['Regime', 'Regime_Change'])
-    print(f"DEBUG: Tab 1 - Grouped regimes. Groups: {len(grouped)}")
+
 
     # Collect periods
     periods = []
@@ -81,7 +81,7 @@ def render(tab, sp_inflation_data):
             end = start
         color = regime_bg_colors.get(regime, 'rgba(200,200,200,0.10)')
         fig.add_vrect(x0=start, x1=end, fillcolor=color, opacity=1.0, layer="below", line_width=0)
-    print(f"DEBUG: Tab 1 - Added {len(dfp)} vrects.")
+
 
     # Prepare customdata for hover
     req = ['Regime', 'S&P 500', 'S&P 500 MA', 'Inflation Rate', 'Inflation Rate MA']
@@ -93,7 +93,7 @@ def render(tab, sp_inflation_data):
             sp_inflation_data['Inflation Rate MA'].fillna(0),
             labels]
     customdata = np.stack(data, axis=-1)
-    print(f"DEBUG: Tab 1 - Customdata shape: {customdata.shape}")
+
 
     # Add traces
     if show_sp500:
@@ -140,7 +140,7 @@ def render(tab, sp_inflation_data):
             customdata=customdata,
             hovertemplate='Inflation Rate MA: %{customdata[3]:.2f}<br>Regime: %{customdata[4]}<extra></extra>'
         ))
-    print("DEBUG: Tab 1 - Added all traces.")
+
 
     # Layout
     fig.update_layout(
