@@ -175,6 +175,18 @@ if "include_late_assets" not in st.session_state:
     st.session_state["include_late_assets"] = False
 include_late_assets = st.session_state["include_late_assets"]
 
+# Checkbox for S&P 500 inflation adjustment in the sidebar
+if 'adjust_sp500_for_inflation' not in st.session_state:
+    st.session_state.adjust_sp500_for_inflation = False # Default to False
+
+st.session_state.adjust_sp500_for_inflation = st.sidebar.checkbox(
+    "Adjust S&P 500 for inflation (for regime calculation)",
+    value=st.session_state.adjust_sp500_for_inflation,
+    key='adjust_sp500_for_inflation_sidebar_checkbox',
+    help="If checked, the S&P 500 series used for regime definition will be divided by CPI to get real values."
+)
+
+
 # Data Loading & Caching
 if "sp_inflation_data" not in st.session_state:
     with st.spinner("Loading data..."):
@@ -221,6 +233,39 @@ asset_ts_data = asset_ts_data[
 print(
     f"DEBUG: After filtering: SP shape {sp_inflation_data.shape}, Asset shape {asset_ts_data.shape}"
 )
+
+# --- Apply S&P 500 Inflation Adjustment if selected ---
+# The key used here must match the key of the checkbox in the sidebar
+if st.session_state.get('adjust_sp500_for_inflation_sidebar_checkbox', False):
+    if 'CPI' in sp_inflation_data.columns and not sp_inflation_data['CPI'].dropna().empty: # Check if there is ANY non-NaN CPI data
+        if 'S&P 500' in sp_inflation_data.columns and not sp_inflation_data['S&P 500'].isnull().all():
+            # Forward-fill the CPI series. This uses the last known CPI for recent S&P 500 dates
+            # where current CPI might be NaN due to data lag.
+            cpi_series_filled = sp_inflation_data['CPI'].ffill()
+            # After forward-filling, replace any 0s with NaN to avoid division by zero.
+            # This is a safeguard in case 0 is a valid reported CPI value (unlikely for broad indices) or if ffill propagates a 0.
+            cpi_series_filled = cpi_series_filled.replace(0, np.nan)
+
+            # Check if the forward-filled CPI series has any valid (non-NaN) data to use for adjustment.
+            if not cpi_series_filled.dropna().empty:
+                sp_inflation_data['S&P 500 Original (Nominal)'] = sp_inflation_data['S&P 500'].copy()
+                sp_inflation_data['S&P 500'] = sp_inflation_data['S&P 500'] / cpi_series_filled
+                print("INFO: S&P 500 data for regime calculation has been adjusted for inflation using forward-filled CPI.")
+            else:
+                st.warning("Cannot adjust S&P 500 for inflation: Forward-filled CPI series resulted in no valid data (e.g., all zeros or NaNs). Using unadjusted S&P 500.")
+        else:
+            st.warning("Cannot adjust S&P 500 for inflation: 'S&P 500' data is missing or empty. Using unadjusted S&P 500.")
+    else:
+        st.warning("Cannot adjust S&P 500 for inflation: 'CPI' data is missing, empty, or contains no valid numbers. Using unadjusted S&P 500.")
+else:
+    # Ensure the original S&P 500 is used if adjustment is not selected or was previously applied
+    if 'S&P 500 Original (Nominal)' in sp_inflation_data.columns:
+        sp_inflation_data['S&P 500'] = sp_inflation_data['S&P 500 Original (Nominal)'].copy()
+        # Optionally remove the temporary column if no longer needed, 
+        # but it's good to keep it if the user might toggle the checkbox back and forth.
+        # del sp_inflation_data['S&P 500 Original (Nominal)'] 
+        print("INFO: Using nominal S&P 500 data as inflation adjustment is not selected.")
+
 
 # --- Logging for Moving Average Computation ---
 t0 = time.time()

@@ -11,6 +11,7 @@ def load_data():
     # --- Define all data URLs ---
     sp500_url = "https://www.longtermtrends.net/data-sp500-since-1871/"
     inflation_url = "https://www.longtermtrends.net/data-inflation-forecast/"
+    cpi_url = "https://www.longtermtrends.net/data-cpi/"  # Added CPI URL
     bonds_url = "https://www.longtermtrends.net/data-total-return-bond-index/"
     gold_url = "https://www.longtermtrends.net/data-gold-since-1792/"
     # MSCI USA series
@@ -60,6 +61,7 @@ def load_data():
     urls = {
         'S&P 500': sp500_url,
         'Inflation Rate': inflation_url,
+        'CPI': cpi_url,  # Added CPI to urls
         'Bonds': bonds_url,
         'Gold': gold_url,
         'MSCI USA Large Cap': msci_large_url,
@@ -124,6 +126,7 @@ def load_data():
     # Unpack results
     df_sp500 = results.get('S&P 500')
     df_inflation = results.get('Inflation Rate')
+    df_cpi = results.get('CPI') # Unpack CPI
     df_bonds = results.get('Bonds')
     df_gold = results.get('Gold')
     df_msci_large = results.get('MSCI USA Large Cap')
@@ -187,7 +190,16 @@ def load_data():
         return None
 
     df_sp500_resampled = resample_and_correct_date(df_sp500, 'S&P 500')
+    if df_sp500_resampled is not None and not df_sp500_resampled.empty:
+        print(f"DEBUG_LATEST_DATE: df_sp500_resampled last date: {df_sp500_resampled.index.max()}")
+
     df_inflation_resampled = resample_and_correct_date(df_inflation, 'Inflation Rate')
+    # df_inflation_interpolated is created from df_inflation_resampled later
+
+    df_cpi_resampled = resample_and_correct_date(df_cpi, 'CPI') # Resample CPI
+    if df_cpi_resampled is not None and not df_cpi_resampled.empty:
+        print(f"DEBUG_LATEST_DATE: df_cpi_resampled last date: {df_cpi_resampled.index.max()}")
+
     df_bonds_resampled = resample_and_correct_date(df_bonds, 'Bonds')
     df_gold_resampled = resample_and_correct_date(df_gold, 'Gold')
 
@@ -212,6 +224,8 @@ def load_data():
         # Keep the column name as 'Inflation Rate' for merging
         df_inflation_interpolated.columns = ['Inflation Rate']
         print(f"DEBUG: Inflation interpolated columns: {df_inflation_interpolated.columns.tolist()}")
+        if not df_inflation_interpolated.empty:
+            print(f"DEBUG_LATEST_DATE: df_inflation_interpolated last date: {df_inflation_interpolated.index.max()}")
 
 
     df_msci_large_resampled = resample_and_correct_date(df_msci_large, 'MSCI USA Large Cap')
@@ -253,28 +267,59 @@ def load_data():
     df_dbc_resampled = resample_and_correct_date(df_dbc, 'Invesco DB Commodity Index Tracking Fund (DBC)')
     df_gld_resampled = resample_and_correct_date(df_gld, 'SPDR Gold Shares (GLD)')
 
-    # 2. Inner merge S&P 500 and Inflation Rate
+    # 2. Merge S&P 500, Inflation Rate, and CPI
     sp_inflation_df = pd.DataFrame()
+
+    # Step 2a: Inner merge S&P 500 and Interpolated Inflation Rate (core data)
     if df_sp500_resampled is not None and df_inflation_interpolated is not None:
-        if df_sp500_resampled.index.name != df_inflation_interpolated.index.name:
-            common_index_name = df_sp500_resampled.index.name or 'Date'
-            df_sp500_resampled.index.name = common_index_name
-            df_inflation_interpolated.index.name = common_index_name
+        # Standardize index names for the first merge
+        core_common_index_name = df_sp500_resampled.index.name or df_inflation_interpolated.index.name or 'Date'
+        df_sp500_resampled.index.name = core_common_index_name
+        df_inflation_interpolated.index.name = core_common_index_name
+        
         sp_inflation_df = pd.merge(df_sp500_resampled, df_inflation_interpolated, left_index=True, right_index=True, how='inner')
-    # If only one is present, fallback as before
+        if not sp_inflation_df.empty:
+            print(f"DEBUG_LATEST_DATE: sp_inflation_df after S&P500/Inflation inner merge last date: {sp_inflation_df.index.max()}")
     elif df_sp500_resampled is not None:
         sp_inflation_df = df_sp500_resampled.copy()
         sp_inflation_df['Inflation Rate'] = np.nan
+        print("LOADER_WARNING: Interpolated Inflation Rate data not available. Proceeding with S&P 500 only for sp_inflation_df base.")
     elif df_inflation_interpolated is not None:
         sp_inflation_df = df_inflation_interpolated.copy()
         sp_inflation_df['S&P 500'] = np.nan
+        print("LOADER_WARNING: S&P 500 data not available. Proceeding with Interpolated Inflation Rate only for sp_inflation_df base.")
+    else:
+        # If both S&P500 and Inflation are missing, sp_inflation_df will be empty. Further processing might be limited.
+        print("LOADER_ERROR: Both S&P 500 and Inflation Rate data are missing. Regime analysis will be impacted.")
+        # Initialize with an empty DataFrame with a DateTime index if it's truly empty
+        if sp_inflation_df.empty:
+            sp_inflation_df = pd.DataFrame(index=pd.to_datetime([]))
+            # Attempt to set a default index name, common in other parts of the code
+            sp_inflation_df.index.name = 'Date' 
 
-    elif df_sp500_resampled is not None:
-        sp_inflation_df = df_sp500_resampled.copy()
-        sp_inflation_df['Inflation Rate'] = np.nan
-    elif df_inflation_resampled is not None:
-        sp_inflation_df = df_inflation_resampled.copy()
-        sp_inflation_df['S&P 500'] = np.nan
+    # Step 2b: Left merge CPI data into the existing sp_inflation_df
+    if df_cpi_resampled is not None and not sp_inflation_df.empty:
+        # Ensure index names match for the left merge or are compatible
+        # If sp_inflation_df has an index name from previous step, use it.
+        # If df_cpi_resampled has a different name, it's usually fine as merge is on index, but good practice to align if possible.
+        if sp_inflation_df.index.name is None: sp_inflation_df.index.name = 'Date' # Default if somehow still None
+        df_cpi_resampled.index.name = sp_inflation_df.index.name
+
+        # Rename CPI column before merge to avoid potential conflicts and ensure clarity
+        # Assuming the CPI data is in the first column of df_cpi_resampled
+        cpi_col_name = df_cpi_resampled.columns[0]
+        df_cpi_resampled_renamed = df_cpi_resampled.rename(columns={cpi_col_name: 'CPI'}) 
+        
+        sp_inflation_df = pd.merge(sp_inflation_df, df_cpi_resampled_renamed[['CPI']], left_index=True, right_index=True, how='left')
+        if not sp_inflation_df.empty:
+            print(f"DEBUG_LATEST_DATE: sp_inflation_df after CPI left merge last date: {sp_inflation_df.index.max()}")
+    elif not sp_inflation_df.empty:
+        # If CPI data is not available, add a NaN column for CPI to maintain structure
+        sp_inflation_df['CPI'] = np.nan
+        print("LOADER_INFO: CPI data not available. 'CPI' column added with NaNs.")
+    # If sp_inflation_df is empty from the start, and CPI is also not available, it remains empty.
+    # If sp_inflation_df is empty but CPI is available, it's an edge case not directly handled by adding CPI to an empty df here.
+    # However, the primary logic relies on sp_inflation_df being populated by S&P500 and/or Inflation first.
 
     # 3. Outer merge all assets
     asset_ts_data = pd.DataFrame()

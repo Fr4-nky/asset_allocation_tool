@@ -13,6 +13,8 @@ def render(tab, sp_inflation_data):
     sp500_n = st.session_state['ma_length']
     inflation_n = sp500_n
 
+    # Checkbox has been moved to the sidebar in streamlit_app.py
+
     tab.markdown(
         """
         <h2 style='text-align:left; font-size:2.0rem; font-weight:600;'>Regime Visualization</h2>
@@ -32,6 +34,25 @@ def render(tab, sp_inflation_data):
     # Initialize figure
     fig = go.Figure()
     print("DEBUG: Tab 1 - Initialized go.Figure.")
+
+    # Check if S&P 500 is inflation-adjusted to update trace names and hover info
+    # This key must match the key of the checkbox in the sidebar (streamlit_app.py)
+    is_sp500_adjusted = st.session_state.get('adjust_sp500_for_inflation_sidebar_checkbox', False)
+    # sp500_label_suffix = " (Inflation Adjusted)" if is_sp500_adjusted else "" # This line is not used further down, can be removed or kept for clarity if needed elsewhere
+    # Check if the original nominal S&P 500 data exists (meaning adjustment happened)
+    # This is a more robust check that adjustment was actually attempted and potentially successful.
+    original_sp500_exists = 'S&P 500 Original (Nominal)' in sp_inflation_data.columns
+    
+    # Refined suffix based on actual data state
+    if is_sp500_adjusted and original_sp500_exists:
+        sp500_display_suffix = " (Real)"
+        sp500_ma_display_suffix = " (Real)"
+    elif is_sp500_adjusted and not original_sp500_exists :
+        sp500_display_suffix = " (Nominal - Adj. Failed)" # If adjustment was selected but failed (e.g. no CPI)
+        sp500_ma_display_suffix = " (Nominal - Adj. Failed)"
+    else:
+        sp500_display_suffix = " (Nominal)"
+        sp500_ma_display_suffix = " (Nominal)"
 
     # Compute continuous regime segments
     sp_inflation_data['Regime_Change'] = (
@@ -80,22 +101,22 @@ def render(tab, sp_inflation_data):
             x=sp_inflation_data['DateTime'],
             y=sp_inflation_data['S&P 500'],
             mode='lines',
-            name='S&P 500',
+            name=f'S&P 500{sp500_display_suffix}',
             line=dict(color=asset_colors['S&P 500'], dash='dot'),
             yaxis='y1',
             customdata=customdata,
-            hovertemplate='S&P 500: %{customdata[0]:.2f}<br>Regime: %{customdata[4]}<extra></extra>'
+            hovertemplate=f'S&P 500{sp500_display_suffix}: %{{customdata[0]:.2f}}<br>Regime: %{{customdata[4]}}<extra></extra>'
         ))
     if show_sp500_ma:
         fig.add_trace(go.Scatter(
             x=sp_inflation_data['DateTime'],
             y=sp_inflation_data['S&P 500 MA'],
             mode='lines',
-            name=f'S&P 500 MA ({sp500_n}m)',
+            name=f'S&P 500 MA ({sp500_n}m){sp500_ma_display_suffix}',
             line=dict(color=asset_colors['S&P 500 MA']),
             yaxis='y1',
             customdata=customdata,
-            hovertemplate='S&P 500 MA: %{customdata[1]:.2f}<br>Regime: %{customdata[4]}<extra></extra>'
+            hovertemplate=f'S&P 500 MA{sp500_ma_display_suffix}: %{{customdata[1]:.2f}}<br>Regime: %{{customdata[4]}}<extra></extra>'
         ))
     if show_inflation:
         fig.add_trace(go.Scatter(
@@ -381,24 +402,44 @@ def render(tab, sp_inflation_data):
     # --- DATA PROCESSING METHODOLOGY SECTION ---
     st.markdown("""
 ----
+<h2>Important Considerations</h2>
+<ul>
+  <li>The Inflation Rate nowcast data is an estimate and subject to revision, potentially affecting recent regime classifications. The analysis end date is determined by the common availability of processed S&P 500 and Inflation Rate data. When adjusting S&P 500 for inflation, the use of forward-filled CPI means recent real S&P 500 values might be based on a slightly older CPI value if current CPI data is lagging.</li>
+  <li>The S&P 500 is a proxy for economic growth.
+    <ul>
+      <li>Nominal S&P 500 is used by default.</li>
+      <li>Selecting "Adjust S&P 500 for inflation" uses real S&P 500 growth (S&P 500 divided by forward-filled CPI) for regime calculation. This can change S&P 500 growth rates, potentially altering regime classifications and asset performance metrics within those regimes across the application.</li>
+      <li>The S&P 500 line shown in asset performance charts (e.g., "Asset Classes" tab) always reflects nominal S&P 500. However, its calculated metrics within regimes will reflect any changes to regime definitions.</li>
+    </ul>
+  </li>
+  <li>Regime identification is sensitive to BME resampling and the chosen Moving Average length.</li>
+  <li>All performance data is historical and not indicative of future results. Market conditions change.</li>
+  <li>This tool is for informational and educational purposes only, not financial advice. Conduct your own research or consult a financial advisor.</li>
+</ul>
+
+----
 <h2>Data Processing Methodology</h2>
 <ul>
-  <li>Asset data is sourced from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a> and resampled to business month end (BME) frequency.</li>
-  <li>The inflation series is extended using the <a href='https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' target='_blank'>Cleveland Fed Nowcast</a> to supplement the latest official CPI data. The gap between the last official report and the nowcast is interpolated to ensure a continuous dataset.</li>
-  <li>Moving averages and growth rates are calculated for both the S&P 500 and the extended inflation data.</li>
-  <li>Economic regimes are then identified based on these indicators, and asset performance is calculated for each regime.</li>
+  <li>S&P 500, Consumer Price Index (CPI), and Inflation Rate data are sourced from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a>. All series are resampled to business month end (BME) frequency.</li>
+  <li>The S&P 500 and Inflation Rate series are merged first (inner join) to set the common analysis period. CPI data is then added (left join) to avoid shortening this period due to its own reporting lag.</li>
+  <li>The Inflation Rate series uses the <a href='https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' target='_blank'>Cleveland Fed Nowcast</a> to extend data and is interpolated for continuity.</li>
+  <li>Users can select a sidebar option to adjust the S&P 500 for inflation. If chosen, the CPI series is forward-filled (using the last known value for any missing recent entries) and then used to divide the S&P 500, producing real S&P 500 values for regime calculation.</li>
+  <li>Moving averages (MA) and MA growth rates are calculated for the S&P 500 (nominal or real, per user choice) and the Inflation Rate.</li>
+  <li>Economic regimes are identified based on S&P 500 MA growth and Inflation Rate MA growth. Asset performance is then analyzed within these regimes.</li>
 </ul>
 
 <h2>Important Considerations</h2>
 <ul>
-  <li>The nowcast inflation data point is an estimation and will be corrected once official CPI numbers are released, which can impact regime identification and asset performance metrics per regime.</li>
-  <li>The S&amp;P 500 is used as a proxy for economic growth to facilitate analysis with readily available daily data. The S&amp;P 500 and GDP are historically highly correlated, as illustrated <a href="https://www.longtermtrends.net/business-cycle/" target="_blank">here</a>.</li>
-  <li>The resampling to business month end (BME) can also impact regime identification and asset performance metrics per regime.</li>
-  <li>All performance data presented is historical and is not indicative of future results. Market conditions and asset behaviors can change.</li>
-  <li>The macroeconomic regime model used (based on S&amp;P 500 and inflation trends) is a simplified representation of complex economic interactions. Other factors not included in this model can also significantly influence asset performance.</li>
-  <li>Historical data availability varies across different assets. Analyses and comparisons, particularly for aggregated metrics, may be influenced by these differing start dates. The tool provides options to include or exclude assets with shorter histories in some calculations, where applicable.</li>
-  <li>The identification of economic regimes is sensitive to the Moving Average (MA) length selected by the user. Different MA lengths can result in different regime classifications and performance metrics for the same historical period.</li>
-  <li>This tool is for informational and educational purposes only and should not be construed as financial advice. Always conduct your own research or consult with a qualified financial advisor before making investment decisions.</li>
+  <li>The Inflation Rate nowcast data is an estimate and subject to revision, potentially affecting recent regime classifications. The analysis end date is determined by the common availability of processed S&P 500 and Inflation Rate data. When adjusting S&P 500 for inflation, the use of forward-filled CPI means recent real S&P 500 values might be based on a slightly older CPI value if current CPI data is lagging.</li>
+  <li>The S&amp;P 500 is used as a proxy for economic growth to facilitate analysis with readily available daily data. The S&amp;P 500 and GDP are historically highly correlated, as illustrated <a href="https://www.longtermtrends.net/business-cycle/" target="_blank">here</a>.</li>    <ul>
+      <li>Nominal S&P 500 is used by default.</li>
+      <li>Selecting "Adjust S&P 500 for inflation" uses real S&P 500 growth (S&P 500 divided by forward-filled CPI) for regime calculation. This can change S&P 500 growth rates, potentially altering regime classifications and asset performance metrics within those regimes across the application.</li>
+      <li>The S&P 500 line shown in asset performance charts (e.g., "Asset Classes" tab) always reflects nominal S&P 500. However, its calculated metrics within regimes will reflect any changes to regime definitions.</li>
+    </ul>
+  </li>
+  <li>Regime identification is sensitive to BME resampling and the chosen Moving Average length.</li>
+  <li>All performance data is historical and not indicative of future results. Market conditions change.</li>
+  <li>This tool is for informational and educational purposes only, not financial advice. Conduct your own research or consult a financial advisor.</li>
 </ul>
 """, unsafe_allow_html=True)
 
@@ -411,6 +452,7 @@ def render(tab, sp_inflation_data):
     <ul>
       <li>S&amp;P 500 Data: <a href="https://www.longtermtrends.net/data-sp500-since-1871/" target="_blank">longtermtrends.net/data-sp500-since-1871/</a></li>
       <li>Inflation Rate Data: <a href="https://www.longtermtrends.net/data-inflation-forecast/" target="_blank">longtermtrends.net/data-inflation-forecast/</a></li>
+      <li>CPI Data (for S&P 500 inflation adjustment): <a href="https://www.longtermtrends.net/data-cpi/" target="_blank">longtermtrends.net/data-cpi/</a></li>
     </ul>
   </li>
   <li><b>Asset Classes Tab</b>
