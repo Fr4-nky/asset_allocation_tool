@@ -420,7 +420,7 @@ def render(tab, sp_inflation_data):
 ----
 <h2>Data Processing Methodology</h2>
 <ul>
-  <li>S&P 500, Consumer Price Index (CPI), and Inflation Rate data are sourced from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a>. All series are resampled to business month end (BME) frequency.</li>
+  <li>All data is sourced from <a href='https://www.longtermtrends.net/' target='_blank'>longtermtrends.net</a> and resampled to business month end (BME) frequency.</li>
   <li>The S&P 500 and Inflation Rate series are merged first (inner join) to set the common analysis period. CPI data is then added (left join) to avoid shortening this period due to its own reporting lag.</li>
   <li>The Inflation Rate series uses the <a href='https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' target='_blank'>Cleveland Fed Nowcast</a> to extend data and is interpolated for continuity.</li>
   <li>Users can select a sidebar option to adjust the S&P 500 for inflation. If chosen, the CPI series is forward-filled (using the last known value for any missing recent entries) and then used to divide the S&P 500, producing real S&P 500 values for regime calculation.</li>
